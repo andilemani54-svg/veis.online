@@ -12,13 +12,124 @@
   <link rel="icon" type="image/png" href="./icon-192.png" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
   <title>VEIS — The City of Business</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { box-sizing: border-box; }
-    body {
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      max-width: 100%;
+      min-height: 100vh;
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       transition: background-color 0.2s ease, color 0.2s ease;
     }
+
+    /* Full-Width Desktop & Multi-Column Responsive Layout (min-width: 768px & 1024px) */
+    .veis-shell {
+      display: flex;
+      width: 100%;
+      min-height: calc(100vh - 4rem);
+      align-items: stretch;
+    }
+    .veis-sidebar {
+      width: 16rem;
+      min-width: 16rem;
+      flex-shrink: 0;
+    }
+    .veis-main {
+      flex: 1 1 auto;
+      min-width: 0;
+      width: 100%;
+    }
+    .veis-container {
+      width: 100%;
+      max-width: 1440px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Desktop & Split-Pane Desktop Preview (activates at >= 640px so Netlify split-pane & desktop monitors show full 3-column layout) */
+    @media (min-width: 640px) {
+      #leftSidebar {
+        position: sticky !important;
+        top: 4rem !important;
+        left: 0 !important;
+        transform: translateX(0) !important;
+        display: flex !important;
+        width: 13.5rem !important;
+        min-width: 13.5rem !important;
+        height: calc(100vh - 4rem) !important;
+      }
+      #mobileSidebarBackdrop,
+      [data-action="toggle-mobile-sidebar"] {
+        display: none !important;
+      }
+      #mainWorkspace {
+        padding: 1.25rem 1.5rem !important;
+      }
+      .veis-desktop-grid-2 {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 1rem !important;
+      }
+      .veis-messages-grid {
+        display: grid !important;
+        grid-template-columns: 260px minmax(0, 1fr) !important;
+      }
+      .veis-messages-list-pane {
+        display: block !important;
+      }
+      .veis-messages-thread-pane {
+        display: flex !important;
+      }
+      .veis-home-layout {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        gap: 1.25rem !important;
+        width: 100% !important;
+      }
+      .veis-home-feed-col {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+      }
+      .veis-quick-access-desktop {
+        display: block !important;
+        width: 15.5rem !important;
+        min-width: 15.5rem !important;
+        flex-shrink: 0 !important;
+      }
+      .veis-quick-access-mobile {
+        display: none !important;
+      }
+    }
+
+    @media (min-width: 1024px) {
+      #leftSidebar {
+        width: 16.5rem !important;
+        min-width: 16.5rem !important;
+      }
+      #mainWorkspace {
+        padding: 1.75rem 2.25rem !important;
+      }
+      .veis-desktop-grid-3 {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 1rem !important;
+      }
+      .veis-home-layout {
+        gap: 1.75rem !important;
+      }
+      .veis-quick-access-desktop {
+        width: 20rem !important;
+        min-width: 20rem !important;
+      }
+    }
+
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .custom-scroll::-webkit-scrollbar { width: 6px; }
@@ -119,10 +230,10 @@
   <div id="mobileSidebarBackdrop" data-action="close-mobile-sidebar" class="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs hidden lg:hidden"></div>
 
   <!-- Main App Shell -->
-  <div class="min-h-[calc(100vh-4rem)] flex">
+  <div class="veis-shell min-h-[calc(100vh-4rem)] flex">
 
     <!-- Left Navigation Sidebar -->
-    <aside id="leftSidebar" class="fixed lg:sticky top-16 left-0 z-40 w-64 h-[calc(100vh-4rem)] bg-[#0E1731] text-white flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-out overflow-y-auto custom-scroll">
+    <aside id="leftSidebar" class="veis-sidebar fixed md:sticky top-16 left-0 z-40 w-64 h-[calc(100vh-4rem)] bg-[#0E1731] text-white flex flex-col justify-between shrink-0 transform -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out overflow-y-auto custom-scroll">
       <div class="p-3.5 space-y-1">
         <nav id="sidebarNavList" class="space-y-1"></nav>
       </div>
@@ -132,8 +243,8 @@
     </aside>
 
     <!-- Main Workspace Area -->
-    <main id="mainWorkspace" class="flex-1 min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-6">
-      <div class="max-w-[1220px] mx-auto">
+    <main id="mainWorkspace" class="veis-main flex-1 min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-6">
+      <div class="veis-container max-w-[1440px] mx-auto">
         <div id="appViewContainer"></div>
       </div>
     </main>
@@ -181,25 +292,7 @@
           allowDirectMessages: true,
           allowLiveCoHostRequests: true
         },
-        currentUser: {
-          id: 'user-andile',
-          name: 'Andile Mani',
-          initials: 'AM',
-          email: 'andile@veis.co.za',
-          role: 'Founder & Entrepreneur',
-          venture: 'VEIS Ventures',
-          location: 'Bloemfontein, South Africa',
-          bio: 'Building scalable ventures, connecting founders with capital, and sharing practical business execution insights across Africa.',
-          subscription: 'standard',
-          verificationStatus: 'Verified (ID & Selfie)',
-          verificationDocs: {
-            idDocName: 'SA_Smart_ID_Andile.pdf',
-            selfieName: 'Selfie_Verification_Andile.jpg',
-            bizRegName: ''
-          },
-          avatarUrl: '',
-          socials: { ...DEFAULT_SOCIALS }
-        },
+        currentUser: null,
         registeredUsers: [
           {
             id: 'user-andile',
@@ -210,14 +303,9 @@
             role: 'Founder & Entrepreneur',
             venture: 'VEIS Ventures',
             location: 'Bloemfontein, South Africa',
-            bio: 'Building scalable ventures, connecting founders with capital, and sharing practical business execution insights across Africa.',
-            subscription: 'standard',
-            verificationStatus: 'Verified (ID & Selfie)',
-            verificationDocs: {
-              idDocName: 'SA_Smart_ID_Andile.pdf',
-              selfieName: 'Selfie_Verification_Andile.jpg',
-              bizRegName: ''
-            },
+            bio: 'Building practical systems and communities that empower entrepreneurs to access knowledge, capital, and partnerships.',
+            subscription: 'business',
+            verificationStatus: 'Verified (ID, Business Docs & Matched Live Selfie • 97.4%)',
             avatarUrl: '',
             socials: { ...DEFAULT_SOCIALS }
           }
@@ -591,13 +679,41 @@
         ]
       };
 
+      const STORAGE_KEY = 'veis_city_of_business_prod_v1';
+
       function loadState() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            return {
+              ...JSON.parse(JSON.stringify(INITIAL_STATE)),
+              ...parsed,
+              settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) }
+            };
+          }
+        } catch (err) {}
         return JSON.parse(JSON.stringify(INITIAL_STATE));
       }
 
       let state = loadState();
 
-      function saveState() {}
+      function saveState() {
+        try {
+          const cleanPosts = (state.posts || []).map(p => {
+            if (p.mediaUrl && p.mediaUrl.startsWith('blob:')) {
+              return { ...p, mediaType: 'none', mediaUrl: '' };
+            }
+            return p;
+          });
+          const snapshot = {
+            ...state,
+            posts: cleanPosts,
+            notifDropdownOpen: false
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        } catch (err) {}
+      }
 
       function applyTheme() {
         if (state.theme === 'dark') {
@@ -995,7 +1111,7 @@
 
         if (isMobileGrid) {
           return `
-            <section aria-label="Quick Access" class="xl:hidden mb-5 bg-white rounded-2xl border border-[#E6ECF5] p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+            <section aria-label="Quick Access" class="veis-quick-access-mobile lg:hidden mb-5 bg-white rounded-2xl border border-[#E6ECF5] p-4 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
               <div class="flex items-center justify-between mb-3">
                 <h2 class="text-sm font-bold text-[#0F172A]">Quick Access</h2>
                 <span class="text-[11px] font-medium text-[#64748B]">Shortcuts</span>
@@ -1016,7 +1132,7 @@
         }
 
         return `
-          <aside class="hidden xl:block w-80 shrink-0 space-y-4">
+          <aside class="veis-quick-access-desktop hidden lg:block w-80 shrink-0 space-y-4">
             <div>
               <h2 class="text-base font-bold text-[#0F172A] mb-3">Quick Access</h2>
               <div class="space-y-3">
@@ -1240,6 +1356,7 @@
       }
 
       function renderHomeView() {
+        const isLoggedIn = !!state.currentUser;
         const firstName = state.currentUser ? state.currentUser.name : 'Entrepreneur';
         const tabs = ['All', 'Posts', 'Webinar', 'Live Net'];
 
@@ -1273,46 +1390,50 @@
           `;
         } else {
           feedContentHtml = `
-            <div class="space-y-4">
+            <div class="space-y-5">
               ${state.posts.map(p => renderPostCard(p)).join('')}
-              ${state.liveStreams.slice(0, 1).map(s => renderLiveStreamCard(s)).join('')}
+              ${state.liveStreams.slice(0, 2).map(s => renderLiveStreamCard(s)).join('')}
               ${state.webinars.slice(0, 1).map(w => renderWebinarCard(w)).join('')}
             </div>
           `;
         }
 
         return `
-          <div class="flex flex-col xl:flex-row items-start gap-6">
-            <div class="w-full flex-1 min-w-0">
-              <section class="relative overflow-hidden rounded-2xl bg-[#0E1731] text-white p-6 sm:p-8 shadow-md mb-5 border border-[#1E3A8A]/40">
-                <img
-                  src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1400&q=80"
-                  alt="Modern business city skyline"
-                  onerror="this.style.display='none'"
-                  class="absolute inset-0 w-full h-full object-cover object-center opacity-40 mix-blend-luminosity scale-105 pointer-events-none select-none"
-                />
-                <div class="absolute inset-0 bg-gradient-to-r from-[#0E1731]/95 via-[#172D6B]/85 to-[#2255D6]/75 pointer-events-none"></div>
-
+          <div class="veis-home-layout flex flex-col lg:flex-row items-start gap-6">
+            <div class="veis-home-feed-col flex-1 min-w-0 w-full space-y-6">
+              <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0E1731] via-[#172C68] to-[#2255D6] p-6 sm:p-8 text-white shadow-md">
+                <div class="absolute -right-12 -bottom-12 w-56 h-56 rounded-full bg-white/5 pointer-events-none"></div>
                 <div class="relative z-10">
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-xs border border-white/15 text-[11px] font-semibold text-blue-100 mb-3">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                     <span>VEIS — The City of Business</span>
                   </span>
                   <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight max-w-md text-white drop-shadow-xs">
-                    Welcome back, ${escapeHtml(firstName)}
+                    ${isLoggedIn ? `Welcome back, ${escapeHtml(firstName)}` : 'Welcome to VEIS — The City of Business'}
                   </h1>
                   <p class="text-sm text-blue-100 mt-2.5 max-w-md leading-relaxed">
-                    Share updates, photos and videos with your network and see what your community is posting.
+                    ${isLoggedIn
+                      ? 'Share updates, photos and videos with your network and see what your community is posting.'
+                      : 'Sign in or create your entrepreneur account to post, join Live & Net Live rooms, connect with founders, and access funding.'}
                   </p>
                   <div class="mt-5 flex flex-wrap items-center gap-2.5">
-                    <button type="button" data-action="open-create-post" class="inline-flex items-center gap-2 bg-white text-[#0E1731] hover:bg-blue-50 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm transition">
-                      <span class="text-base leading-none">+</span>
-                      <span>Create Post</span>
-                    </button>
-                    <button type="button" data-route="live" class="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 font-semibold text-sm px-4 py-2.5 rounded-xl transition">
-                      <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
-                      <span>Go Live / Webinar</span>
-                    </button>
+                    ${isLoggedIn ? `
+                      <button type="button" data-action="open-create-post" class="inline-flex items-center gap-2 bg-white text-[#0E1731] hover:bg-blue-50 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm transition">
+                        <span class="text-base leading-none">+</span>
+                        <span>Create Post</span>
+                      </button>
+                      <button type="button" data-route="live" class="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 font-semibold text-sm px-4 py-2.5 rounded-xl transition">
+                        <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
+                        <span>Go Live / Webinar</span>
+                      </button>
+                    ` : `
+                      <button type="button" data-action="open-auth" data-mode="signup" class="inline-flex items-center gap-2 bg-white text-[#0E1731] hover:bg-blue-50 font-bold text-sm px-5 py-2.5 rounded-xl shadow-sm transition">
+                        <span>Create Account</span>
+                      </button>
+                      <button type="button" data-action="open-auth" data-mode="login" class="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 font-semibold text-sm px-5 py-2.5 rounded-xl transition">
+                        <span>Sign In</span>
+                      </button>
+                    `}
                   </div>
                 </div>
               </section>
@@ -1357,7 +1478,7 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="veis-desktop-grid-3 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs flex flex-col justify-between">
                 <div>
                   <div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mb-3">
@@ -1410,14 +1531,14 @@
 
             <div class="space-y-3">
               <h2 class="text-lg font-extrabold text-[#0F172A]">Active Live & Net Live Rooms</h2>
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 lg:grid-cols-2 gap-4">
                 ${state.liveStreams.map(s => renderLiveStreamCard(s)).join('')}
               </div>
             </div>
 
             <div class="space-y-3">
               <h2 class="text-lg font-extrabold text-[#0F172A]">Live & Upcoming Educational Webinars</h2>
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 lg:grid-cols-2 gap-4">
                 ${state.webinars.map(w => renderWebinarCard(w)).join('')}
               </div>
             </div>
@@ -1522,7 +1643,7 @@
               <p class="text-sm text-[#64748B] mt-0.5">Build relationships with founders, investors, and mentors across VEIS.</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
               ${state.members.map(m => `
                 <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs flex flex-col justify-between gap-4">
                   <div class="flex items-start gap-3.5">
@@ -1704,7 +1825,7 @@
                 <h1 class="text-2xl font-extrabold text-[#0F172A]">Account & Reach Analytics</h1>
                 <p class="text-sm text-[#64748B]">Track your engagement across posts, Live streams, and educational Webinars.</p>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div class="veis-desktop-grid-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5">
                   <p class="text-xs font-semibold text-[#64748B]">Published Posts</p>
                   <p class="text-3xl font-extrabold text-[#0F172A] mt-2">${state.posts.length}</p>
@@ -1735,7 +1856,7 @@
                   <span>Write Business Wisdom</span>
                 </button>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 ${state.wisdomArticles.map(art => `
                   <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs flex flex-col justify-between">
                     <div>
@@ -1767,7 +1888,7 @@
                 <h1 class="text-2xl font-extrabold text-[#0F172A]">Funding & Grants</h1>
                 <p class="text-sm text-[#64748B]">Curated non-dilutive grants and blended SME financing opportunities.</p>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 ${state.grants.map(g => `
                   <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs">
                     <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">${escapeHtml(g.type)}</span>
@@ -1812,7 +1933,7 @@
                 <h1 class="text-2xl font-extrabold text-[#0F172A]">Mentorship</h1>
                 <p class="text-sm text-[#64748B]">Book 1-on-1 guidance sessions with experienced operators and advisors.</p>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 ${state.members.slice(0, 3).map(m => `
                   <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs">
                     <div class="flex items-center gap-3">
@@ -1849,7 +1970,7 @@
                   <span>Create Group</span>
                 </button>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 ${state.groups.map(g => `
                   <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs flex flex-col justify-between">
                     <div>
@@ -1906,7 +2027,7 @@
                   <span>Post Opportunity</span>
                 </button>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 ${state.opportunities.map(o => `
                   <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs">
                     <span class="px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#2255D6] text-[11px] font-bold">${escapeHtml(o.badge)}</span>
@@ -1934,7 +2055,7 @@
                   <span>Publish Event</span>
                 </button>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="veis-desktop-grid-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 ${state.events.map(ev => `
                   <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs">
                     <p class="text-xs font-bold text-[#2255D6]">${escapeHtml(ev.date)}</p>
@@ -1998,8 +2119,8 @@
                 <p class="text-sm text-[#64748B]">Tap any person to open your direct conversation.</p>
               </div>
 
-              <div class="bg-white rounded-2xl border border-[#E6ECF5] overflow-hidden shadow-xs grid grid-cols-1 md:grid-cols-3 min-h-[480px]">
-                <div class="${showThreadMobile ? 'hidden md:block' : 'block'} border-b md:border-b-0 md:border-r border-[#E6ECF5] divide-y divide-[#E6ECF5]">
+              <div class="veis-messages-grid bg-white rounded-2xl border border-[#E6ECF5] overflow-hidden shadow-xs grid grid-cols-1 md:grid-cols-3 min-h-[480px]">
+                <div class="veis-messages-list-pane ${showThreadMobile ? 'hidden md:block' : 'block'} border-b md:border-b-0 md:border-r border-[#E6ECF5] divide-y divide-[#E6ECF5]">
                   <div class="px-4 py-3 bg-[#F8FAFC] border-b border-[#E6ECF5]">
                     <p class="text-xs font-extrabold uppercase tracking-wider text-[#64748B]">Chats (${state.messages.length})</p>
                   </div>
@@ -2043,7 +2164,7 @@
                   ` : ''}
                 </div>
 
-                <div class="${showThreadMobile ? 'flex' : 'hidden md:flex'} md:col-span-2 flex-col justify-between min-h-[480px] bg-[#F8FAFC]/50">
+                <div class="veis-messages-thread-pane ${showThreadMobile ? 'flex' : 'hidden md:flex'} md:col-span-2 flex-col justify-between min-h-[480px] bg-[#F8FAFC]/50">
                   ${activeChat ? `
                     <div class="px-4 py-3 bg-white border-b border-[#E6ECF5] flex items-center justify-between gap-2 sticky top-0 z-10">
                       <div class="flex items-center gap-2.5 min-w-0">
@@ -3147,18 +3268,18 @@
             ${isSignup ? `
               <div>
                 <label class="block text-xs font-bold text-[#475569] mb-1">Full Name</label>
-                <input id="authName" type="text" required placeholder="e.g. Andile Mani" class="w-full px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
+                <input id="authName" type="text" required placeholder="Enter your full name" class="w-full px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
               </div>
             ` : ''}
 
             <div>
               <label class="block text-xs font-bold text-[#475569] mb-1">Email Address</label>
-              <input id="authEmail" type="email" required value="${!isSignup ? 'andile@veis.co.za' : ''}" placeholder="you@business.com" class="w-full px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
+              <input id="authEmail" type="email" required placeholder="you@business.com" class="w-full px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
             </div>
 
             <div>
               <label class="block text-xs font-bold text-[#475569] mb-1">Password</label>
-              <input id="authPassword" type="password" required value="${!isSignup ? 'password123' : ''}" placeholder="••••••••" class="w-full px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
+              <input id="authPassword" type="password" required placeholder="••••••••" class="w-full px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
             </div>
 
             ${isSignup ? `
@@ -3597,537 +3718,447 @@ When creating an account, members may be asked to provide:
 - Registration and account activity information.
 - Identity verification documents (Government ID document and Selfie verification for Standard Accounts; Government ID document, Business Registration documents, and Selfie verification for Business Accounts).
 
-3.2 Business Profile Information
-Members who create business profiles may provide:
-- Business name.
-- Business registration information.
-- Business description.
-- Industry and business category.
-- Business address or operating location.
-- Website and social media links.
-- Business contact details.
-- Products and services.
-- Business milestones and achievements.
-- Visual Business Plans (VBP).
-- Other information voluntarily submitted through business profiles.
+3.2 Business Profile and Platform Information
+Members may voluntarily provide additional information, including:
+- Business name and trading name.
+- Registration details, where provided.
+- Industry or sector.
+- Business description, mission or vision.
+- Products, services and offerings.
+- Website links and contact details.
+- Business location.
+- Business opportunities, events, news or promotions.
+- Visual Business Plans or business-related submissions.
 
-3.3 User-Generated Content
-VEIS may collect and process content that members voluntarily publish or upload, including:
-- Posts and articles.
-- Photographs and videos.
-- Comments and reactions.
-- Business documents.
-- Business proposals.
-- Business plans.
-- Messages and communications.
-- Group discussions.
-- Events and announcements.
-- Other uploaded materials.
+3.3 User Content and Communications
+We process information that members create or share on VEIS, including:
+- Posts, articles, business wisdom and updates.
+- Comments, likes and reactions.
+- Private messages and communications.
+- Group participation and discussions.
+- Live sessions, webinars and networking interactions.
+- Support requests and feedback.
 
 3.4 Technical and Usage Information
-When members use VEIS, certain technical information may be collected automatically, depending on the platform's configuration.
+When accessing VEIS, certain technical data may be collected automatically, such as:
+- IP address.
+- Device type, browser type and operating system.
+- Referral source and navigation paths.
+- Date, time and duration of visits.
+- Feature usage and interaction logs.
+- Error reports and performance diagnostics.
 
-This may include:
-- IP addresses.
-- Browser type and version.
-- Device type.
-- Operating system.
-- Login dates and times.
-- Pages visited.
-- Platform interactions.
-- Error reports.
-- Security and diagnostic logs.
-- Cookie and session information.
+3.5 Cookies and Similar Technologies
+VEIS may use cookies, local storage and similar technologies to:
+- Keep users signed in.
+- Remember preferences and settings.
+- Improve performance and security.
+- Understand how members use the platform.
 
-3.5 Payment Information
-Where paid subscriptions or other payment services are introduced, VEIS or its authorised payment providers may process information necessary to complete transactions.
-
-This may include:
-- Subscription status.
-- Transaction references.
-- Payment dates.
-- Billing information.
-- Payment history.
-- Relevant payment confirmations.
-
-Card details and other sensitive payment credentials should be handled by authorised payment providers wherever possible.
-
-VEIS will not claim to store payment information that it does not actually collect or control.
+Members may manage cookie preferences through browser settings, though disabling certain cookies may affect platform functionality.
 
 4. How We Use Personal Information
 
-VEIS collects and processes personal information for legitimate platform-related purposes, including:
+VEIS uses personal information only for lawful, legitimate purposes connected to operating and improving the platform, including:
 1. Creating and managing member accounts.
-2. Establishing business and personal profiles.
-3. Providing networking and communication services.
-4. Facilitating business discovery and connections.
-5. Delivering notifications and account updates.
-6. Providing business opportunities and relevant information.
-7. Managing subscriptions, identity verification, and payments.
-8. Maintaining platform security.
-9. Detecting fraudulent or suspicious activities.
-10. Improving platform performance and functionality.
-11. Providing customer support.
-12. Meeting applicable legal and regulatory obligations.
-13. Communicating important changes to the platform.
+2. Operating business profiles and networking features.
+3. Enabling discovery of business opportunities, events, groups and news.
+4. Facilitating communication and connections between members.
+5. Processing subscriptions, promotions and platform services.
+6. Providing customer support and responding to enquiries.
+7. Maintaining platform safety, security and integrity.
+8. Detecting, preventing and investigating fraud, abuse or policy violations.
+9. Improving platform design, usability and features.
+10. Complying with legal and regulatory obligations.
 
-VEIS will not intentionally use personal information for purposes incompatible with the purposes for which it was lawfully collected.
+5. Lawful Basis for Processing
 
-5. Public Profiles and Information Visibility
+Where required by data protection laws such as POPIA, VEIS processes personal information on lawful grounds, including:
+- Member consent, where requested.
+- Performance of a contract or steps prior to entering into an agreement.
+- Compliance with legal obligations.
+- Legitimate interests of VEIS or third parties, provided such interests do not unfairly override the rights and freedoms of the individual.
 
-VEIS is a professional networking platform. Certain information is intended to be visible to other members or the public.
+6. Sharing of Personal Information
 
-Depending on account settings and platform functionality, information displayed publicly may include:
-- Name and profile photograph.
-- Professional description.
-- Business name and description.
-- Business website and social media links.
-- Public posts and comments.
-- Business achievements.
-- Publicly shared opportunities.
-- Other information members choose to publish.
+VEIS does not sell personal information to third-party data brokers.
 
-Members should carefully consider what information they make publicly available.
+Personal information may be shared only in the following circumstances:
+1. Within the platform: Information a member chooses to make visible on their profile, posts, opportunities or business listings may be seen by other members according to platform settings and feature functionality.
+2. Service providers and contractors: Trusted third-party providers that support hosting, infrastructure, analytics, payment processing, security or maintenance under confidentiality obligations.
+3. Legal and regulatory authorities: Where disclosure is required by law, court order, subpoena or lawful regulatory request.
+4. Safety and rights protection: Where reasonably necessary to investigate fraud, security threats, illegal conduct or breaches of VEIS terms and policies.
+5. Business restructuring: In connection with a merger, acquisition, restructuring or transfer of assets, subject to appropriate safeguards and applicable law.
 
-VEIS cannot guarantee the removal of information that has already been copied, downloaded, shared or independently stored by other users.
+7. International Data Transfers
 
-Private account information (including uploaded ID documents, business registration certificates, and selfie verification records) is kept strictly confidential and is never made publicly accessible.
+Where personal information is hosted or processed outside South Africa through cloud infrastructure or service providers, VEIS will take reasonable steps to ensure that appropriate data protection safeguards are in place in accordance with applicable law.
 
-6. Private Messages and Communications
+8. Data Security
 
-VEIS may provide private messaging and communication features.
+VEIS takes reasonable technical and organisational measures to protect personal information against loss, unauthorised access, disclosure, alteration or destruction.
 
-Messages are intended for communication between their intended participants.
+These measures may include access controls, encryption where appropriate, authentication protections and regular system review.
 
-VEIS may process relevant communication information to:
-- Deliver messages.
-- Maintain communication functionality.
-- Detect spam, abuse and fraudulent activity.
-- Investigate reported violations.
-- Protect platform security.
-- Comply with legal obligations.
+However, no internet transmission or electronic storage system can be guaranteed to be completely secure. Members are also responsible for safeguarding their login credentials.
 
-Access to private communications will be restricted to authorised purposes and handled in accordance with applicable law.
+9. Data Retention
 
-Members should avoid sharing passwords, financial credentials, confidential business secrets or highly sensitive personal information through ordinary messaging features.
+VEIS retains personal information only for as long as reasonably necessary to fulfil the purposes set out in this Privacy Policy, operate the platform, resolve disputes, enforce policies and comply with legal, accounting or regulatory obligations.
 
-7. Sharing of Personal Information
+When information is no longer required, it will be deleted, anonymised or securely disposed of in accordance with applicable retention practices.
 
-VEIS does not sell members' personal information to third parties for their independent marketing purposes.
+10. Your Privacy Rights
 
-However, personal information may be shared where reasonably necessary and lawful with the following categories of recipients:
-- 7.1 Technology and Hosting Providers: Service providers responsible for hosting, maintaining and operating the VEIS platform.
-- 7.2 Payment Providers: Authorised payment service providers responsible for processing subscriptions and other transactions.
-- 7.3 Communication Providers: Providers assisting with email notifications, verification messages and platform communications.
-- 7.4 Security and Technical Providers: Service providers assisting with cybersecurity, fraud prevention, monitoring and technical maintenance.
-- 7.5 Legal and Regulatory Authorities: Information may be disclosed where required by law, a valid legal process or a competent regulatory authority.
-- 7.6 Business Partners and Advertisers: VEIS may display advertisements, sponsorships and commercial opportunities. Personal information will not automatically be shared with advertisers simply because a member views an advertisement.
+Subject to applicable law and identity verification, members may have the right to:
+- Request confirmation of whether VEIS holds personal information about them.
+- Request access to their personal information.
+- Request correction or updating of inaccurate, incomplete or outdated information.
+- Request deletion or destruction of personal information where legally permissible.
+- Object to processing in certain circumstances.
+- Withdraw consent where processing relies on consent.
+- Lodge a complaint with the Information Regulator (South Africa) or relevant supervisory authority.
 
-8. Cookies and Similar Technologies
+Members can update many account details directly within their profile or settings, or contact VEIS for assistance.
 
-VEIS may use cookies and similar technologies to improve the platform experience, including maintaining login sessions, remembering user preferences, improving navigation, measuring platform performance, and supporting security.
+11. Children's Privacy
 
-Members may manage cookies through their browser settings. Disabling certain cookies may affect the functionality of the platform.
+VEIS is intended for business networking, entrepreneurship and economic opportunity discovery.
 
-9. Data Security
+The platform is not directed at children. Where individuals under 18 access VEIS, appropriate parental or guardian consent is required where applicable by law.
 
-VEIS recognises that personal information must be protected against unauthorised access, loss, misuse, alteration and disclosure.
+If VEIS becomes aware that personal information has been collected without required consent, appropriate steps will be taken to address the information.
 
-We aim to implement appropriate technical and organisational security measures, including access controls and authentication, secure password handling, encryption where appropriate, secure hosting infrastructure, monitoring for suspicious activities, restricted administrative access, backup and recovery procedures, and security incident response procedures.
+12. Updates to This Privacy Policy
 
-Where a security compromise occurs that triggers legal notification obligations, VEIS will take the steps required by applicable law.
+VEIS may update this Privacy Policy from time to time to reflect changes in platform features, legal requirements or operational practices.
 
-10. Data Retention and Deletion
+The updated policy will be published on VEIS with a revised effective date. Where material changes occur, reasonable notice will be provided.
 
-VEIS will retain personal information only for as long as reasonably necessary for the purposes for which it was collected, unless a longer retention period is required or permitted by law.
+13. Contact Information
 
-When personal information is no longer required, VEIS will take reasonable steps to delete, destroy or de-identify it securely.
+For privacy questions, data requests or complaints, please contact:
 
-Members may request account closure and deletion of personal information, subject to applicable legal retention requirements.
+Platform: VEIS — The City of Business
+Full name: Verified Economic Identity System
+Email: privacy@veis.community
 
-11. Member Privacy Rights
-
-Subject to applicable law, members may have the right to:
-1. Request confirmation of whether VEIS holds their personal information.
-2. Request access to their personal information.
-3. Request correction of inaccurate or incomplete information.
-4. Request deletion or destruction of information where legally permitted.
-5. Object to certain forms of processing.
-6. Withdraw consent where processing relies on consent.
-7. Object to direct marketing.
-8. Lodge a complaint with the relevant data protection authority.
-9. Exercise other rights available under applicable data protection legislation.
-
-Requests may be submitted through privacy@veis.community.
-
-12. Direct Marketing and Notifications
-
-VEIS may send members service-related communications, including account verification messages, security notifications, password recovery messages, important platform announcements, subscription and payment updates, and changes to policies and services.
-
-Members will be provided with appropriate options to manage marketing communications.
-
-13. International Data Transfers
-
-VEIS aims to serve a business community across Africa and potentially other international markets. Where personal information is transferred outside South Africa, VEIS will take reasonable steps to ensure that the transfer complies with section 72 of POPIA and other applicable legislation.
-
-14. Children's Privacy
-
-VEIS is designed primarily for entrepreneurs, professionals, businesses and individuals participating in the business environment. The platform is not intended to collect children's personal information unnecessarily.
-
-15. Third-Party Websites and Services
-
-VEIS may contain links to external websites, business directories, social media platforms and third-party services. These external services operate independently and may have their own privacy policies.
-
-16. Automated Processing and Personalisation
-
-VEIS may use automated systems to support platform operations, including content recommendations, business discovery, search and filtering, spam detection, security monitoring, and engagement analytics, in compliance with POPIA.
-
-17. Changes to This Privacy Policy
-
-VEIS may update this Privacy Policy when necessary to reflect new platform features, changes in data processing activities, legal and regulatory developments, or improved security practices. Updated versions will be published on the VEIS platform with a revised effective date.
-
-18. Complaints and Contact Information
-
-Members who have questions, concerns or complaints about how their personal information is handled may contact VEIS through privacy@veis.community.
-
-Where a member is dissatisfied with the handling of a privacy complaint, they may approach the South African Information Regulator:
-South African Information Regulator — Website: https://inforegulator.org.za/
-
-19. Our Commitment
-
-VEIS believes that trust is fundamental to building a successful business community.
-
-We are committed to treating personal information responsibly, respecting member privacy and continuously improving the security and transparency of our platform.
-
-Our members should be able to build businesses, establish professional relationships and discover opportunities with confidence.
-
-VEIS — THE CITY OF BUSINESS
-Where businesses connect, opportunities emerge and economic growth begins.`
+Members in South Africa also have the right to contact the Information Regulator (South Africa) regarding data protection concerns.`
           },
           support: {
-            title: 'VEIS Support Center',
-            subtitle: 'Verified Economic Identity System • Member & Business Support',
-            body: `Welcome to the VEIS Support Center.
+            title: 'VEIS — Support Center',
+            subtitle: 'The City of Business • Founder & Member Assistance',
+            body: `Need help with your VEIS account, verification badge, Live or Net Live rooms, or Business Wisdom articles?
 
-1. Identity & Business Verification Assistance
-• Standard Account (R50/month — Blue Badge): Requires a clear Government ID document (Smart ID or Passport) and a Selfie verification photo.
-• Business Account (R80/month — Green Badge): Requires a Government ID document, official Business Registration documents (e.g., CIPC certificate), and a Selfie verification photo.
-
-2. Account, Privacy & Legal Inquiries
-• General & Technical Support: support@veis.community
-• Privacy & POPIA Data Requests: privacy@veis.community
-• South African Information Regulator: https://inforegulator.org.za/
-
-© 2026 VEIS — The City of Business. All rights reserved.`
+• Account & Verification Badges: Standard Accounts (R50/mo) require a valid Government ID + Selfie. Business Accounts (R80/mo) require a valid Government ID + Business Registration documents + Selfie.
+• Live, Net Live & Webinars: Use the Live studio to go live solo, host multi-guest Net Live rooms where speakers talk together, or schedule educational webinars.
+• Contact Support: support@veis.community`
           }
         };
-        const d = docs[docKey] || docs.terms;
+
+        const doc = docs[docKey] || docs.guidelines;
         openModal(`
           <div class="flex items-center justify-between pb-3 border-b border-[#E6ECF5]">
             <div>
-              <h2 class="text-base sm:text-lg font-extrabold text-[#0F172A]">${escapeHtml(d.title)}</h2>
-              <p class="text-[11px] text-[#64748B] mt-0.5">${escapeHtml(d.subtitle || '')}</p>
+              <h2 class="text-lg font-extrabold text-[#0F172A]">${escapeHtml(doc.title)}</h2>
+              <p class="text-xs text-[#64748B]">${escapeHtml(doc.subtitle)}</p>
             </div>
             <button type="button" data-action="close-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">✕</button>
           </div>
-          <div class="mt-4 max-h-[55vh] overflow-y-auto custom-scroll pr-2 text-xs sm:text-sm text-[#334155] leading-relaxed whitespace-pre-line">
-            ${escapeHtml(d.body)}
+          <div class="mt-4 text-xs sm:text-sm text-[#334155] whitespace-pre-line leading-relaxed max-h-[60vh] overflow-y-auto pr-1">
+            ${escapeHtml(doc.body)}
           </div>
-          <div class="mt-5 pt-3 border-t border-[#E6ECF5] flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-3 text-[11px] font-semibold text-[#2255D6]">
-              <button type="button" data-action="open-legal" data-doc="terms" class="hover:underline">Terms</button>
-              <button type="button" data-action="open-legal" data-doc="privacy" class="hover:underline">Privacy</button>
-              <button type="button" data-action="open-legal" data-doc="guidelines" class="hover:underline">Guidelines</button>
-            </div>
-            <button type="button" data-action="open-auth" data-mode="login" class="px-4 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Back to Sign In</button>
+          <div class="mt-5 pt-3 border-t border-[#E6ECF5] flex justify-end">
+            <button type="button" data-action="close-modal" class="px-5 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Close</button>
           </div>
         `);
       }
 
-      function downloadCalendarInvite(webinar) {
-        const ics = [
-          'BEGIN:VCALENDAR',
-          'VERSION:2.0',
-          'PRODID:-//VEIS Entrepreneur Community//Webinar//EN',
-          'BEGIN:VEVENT',
-          `UID:${webinar.id}@veis.community`,
-          `DTSTAMP:20261120T120000Z`,
-          `DTSTART:${webinar.isoStart || '20261124T120000Z'}`,
-          `DTEND:${webinar.isoEnd || '20261124T133000Z'}`,
-          `SUMMARY:VEIS Webinar: ${webinar.topic}`,
-          `DESCRIPTION:${webinar.description} (Host: ${webinar.hostName})`,
-          'LOCATION:VEIS Live Webinar Room',
-          'END:VEVENT',
-          'END:VCALENDAR'
-        ].join('\r\n');
-
-        const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `VEIS-Webinar-${webinar.id}.ics`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-
       document.addEventListener('click', (e) => {
-        const routeEl = e.target.closest('[data-route]');
-        if (routeEl) {
-          e.preventDefault();
-          const targetRoute = routeEl.getAttribute('data-route');
-          state.currentRoute = targetRoute;
-          state.routeParam = null;
-          if (targetRoute === 'messages') {
-            state.mobileChatOpen = false;
-          }
-          state.notifDropdownOpen = false;
-          document.getElementById('leftSidebar')?.classList.add('-translate-x-full');
-          document.getElementById('mobileSidebarBackdrop')?.classList.add('hidden');
-          saveState();
-          renderApp();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
+        const actionBtn = e.target.closest('[data-action]');
+        const routeBtn = e.target.closest('[data-route]');
 
-        const actionEl = e.target.closest('[data-action]');
-        if (!actionEl) {
-          if (state.notifDropdownOpen && !e.target.closest('.relative')) {
-            state.notifDropdownOpen = false;
+        if (actionBtn) {
+          const action = actionBtn.dataset.action;
+
+          if (action === 'toggle-mobile-sidebar') {
+            const sb = document.getElementById('leftSidebar');
+            const bd = document.getElementById('mobileSidebarBackdrop');
+            sb?.classList.toggle('-translate-x-full');
+            bd?.classList.toggle('hidden');
+            return;
+          }
+
+          if (action === 'close-mobile-sidebar') {
+            document.getElementById('leftSidebar')?.classList.add('-translate-x-full');
+            document.getElementById('mobileSidebarBackdrop')?.classList.add('hidden');
+            return;
+          }
+
+          if (action === 'toggle-notif-dropdown') {
+            e.stopPropagation();
+            state.notifDropdownOpen = !state.notifDropdownOpen;
             renderHeaderControls();
+            return;
           }
-          return;
-        }
 
-        const action = actionEl.getAttribute('data-action');
-
-        if (action === 'toggle-mobile-sidebar') {
-          document.getElementById('leftSidebar')?.classList.toggle('-translate-x-full');
-          document.getElementById('mobileSidebarBackdrop')?.classList.toggle('hidden');
-        } else if (action === 'close-mobile-sidebar') {
-          document.getElementById('leftSidebar')?.classList.add('-translate-x-full');
-          document.getElementById('mobileSidebarBackdrop')?.classList.add('hidden');
-        } else if (action === 'toggle-notif-dropdown') {
-          state.notifDropdownOpen = !state.notifDropdownOpen;
-          renderHeaderControls();
-        } else if (action === 'mark-all-read') {
-          state.notifications.forEach(n => (n.unread = false));
-          saveState();
-          renderApp();
-          showToast('All notifications & VEIS updates marked as read.');
-        } else if (action === 'set-feed-filter') {
-          state.feedFilter = actionEl.getAttribute('data-filter');
-          renderApp();
-        } else if (action === 'toggle-expand-post') {
-          const id = actionEl.getAttribute('data-id');
-          state.expandedPosts[id] = !state.expandedPosts[id];
-          renderApp();
-        } else if (action === 'toggle-like') {
-          const id = actionEl.getAttribute('data-id');
-          const post = state.posts.find(p => p.id === id);
-          if (post) {
-            post.likedByMe = !post.likedByMe;
-            post.likes += post.likedByMe ? 1 : -1;
+          if (action === 'mark-all-read') {
+            state.notifications.forEach(n => { n.unread = false; });
             saveState();
-            renderApp();
-            if (post.likedByMe) showToast(`You showed appreciation to ${post.authorName}!`);
+            renderHeaderControls();
+            if (state.currentRoute === 'notifications') renderApp();
+            showToast('All notifications marked as read.');
+            return;
           }
-        } else if (action === 'toggle-save') {
-          const id = actionEl.getAttribute('data-id');
-          if (state.savedIds.includes(id)) {
-            state.savedIds = state.savedIds.filter(x => x !== id);
-            showToast('Removed from Saved.');
-          } else {
-            state.savedIds.push(id);
-            showToast('Saved to your library.');
-          }
-          saveState();
-          renderApp();
-        } else if (action === 'open-post-comments') {
-          const id = actionEl.getAttribute('data-id');
-          const post = state.posts.find(p => p.id === id);
-          if (!post) return;
-          openModal(`
-            <div class="flex items-center justify-between pb-3 border-b border-[#E6ECF5]">
-              <h2 class="text-base font-extrabold text-[#0F172A]">Discussion on ${escapeHtml(post.authorName)}'s Post</h2>
-              <button type="button" data-action="close-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">✕</button>
-            </div>
-            <div class="mt-4 space-y-3 max-h-64 overflow-y-auto">
-              ${(post.comments || []).length
-                ? post.comments.map(c => `
-                  <div class="p-3 rounded-xl bg-[#F8FAFC] border border-[#E6ECF5]">
-                    <p class="text-xs font-bold text-[#0F172A]">${escapeHtml(c.author)}</p>
-                    <p class="text-xs text-[#334155] mt-1">${escapeHtml(c.text)}</p>
-                  </div>
-                `).join('')
-                : `<p class="text-xs text-[#64748B]">No comments yet. Start the conversation!</p>`}
-            </div>
-            <form id="postCommentForm" data-id="${escapeHtml(post.id)}" class="mt-4 flex gap-2">
-              <input id="postCommentInput" type="text" required placeholder="Write a thoughtful comment..." class="flex-1 px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-xs" />
-              <button type="submit" class="px-4 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Comment</button>
-            </form>
-          `);
-        } else if (action === 'open-create-post') {
-          showCreatePostModal();
-        } else if (action === 'open-promote-post') {
-          showPromotePostModal(actionEl.getAttribute('data-id'));
-        } else if (action === 'clear-post-media') {
-          window.__pendingPostMedia = { type: 'none', url: '', name: '' };
-          const prevEl = document.getElementById('newPostMediaPreview');
-          if (prevEl) {
-            prevEl.innerHTML = '';
-            prevEl.classList.add('hidden');
-          }
-          const imgInput = document.getElementById('newPostImageFile');
-          const vidInput = document.getElementById('newPostVideoFile');
-          if (imgInput) imgInput.value = '';
-          if (vidInput) vidInput.value = '';
-        } else if (action === 'open-publish-wisdom') {
-          showPublishWisdomModal();
-        } else if (action === 'open-publish-opportunity') {
-          showPublishOpportunityModal();
-        } else if (action === 'open-publish-event') {
-          showPublishEventModal();
-        } else if (action === 'open-create-group') {
-          showCreateGroupModal();
-        } else if (action === 'open-go-live') {
-          showGoLiveModal(actionEl.getAttribute('data-mode') || 'Net Live');
-        } else if (action === 'fill-live-heading') {
-          const inp = document.getElementById('liveHeadingInput');
-          if (inp) inp.value = actionEl.getAttribute('data-text') || '';
-        } else if (action === 'open-live-room') {
-          const id = actionEl.getAttribute('data-id');
-          const joinStage = actionEl.getAttribute('data-join-stage') === 'true';
-          showLiveRoomModal(id, joinStage);
-        } else if (action === 'toggle-live-video') {
-          const id = actionEl.getAttribute('data-id');
-          const stream = state.liveStreams.find(s => s.id === id);
-          if (stream) {
-            stream.showVideo = !stream.showVideo;
-            showLiveRoomModal(id, false);
-            showToast(stream.showVideo ? 'Camera video is now visible.' : 'Camera video hidden (audio-only mode).');
-          }
-        } else if (action === 'request-native-fullscreen') {
-          const overlay = document.getElementById('modalOverlay');
-          if (overlay && overlay.requestFullscreen && !document.fullscreenElement) {
-            overlay.requestFullscreen().catch(() => {});
-          } else if (document.fullscreenElement && document.exitFullscreen) {
-            document.exitFullscreen().catch(() => {});
-          }
-        } else if (action === 'download-single-png') {
-          downloadSingleVeisAsset(actionEl.getAttribute('data-file'));
-        } else if (action === 'download-all-pngs') {
-          downloadAllVeisPngAssets();
-        } else if (action === 'install-pwa') {
-          if (window.__deferredPwaPrompt) {
-            window.__deferredPwaPrompt.prompt();
-            window.__deferredPwaPrompt.userChoice.then(() => {
-              window.__deferredPwaPrompt = null;
-            });
-          } else {
-            const logoPreview = renderVeisLogoDataUrl(192, true);
-            const iconPreview = renderVeisLogoDataUrl(192, false);
+
+          if (action === 'install-pwa') {
+            if (window.__deferredPwaPrompt) {
+              window.__deferredPwaPrompt.prompt();
+              window.__deferredPwaPrompt.userChoice.then(() => {
+                window.__deferredPwaPrompt = null;
+              });
+            }
             openModal(`
               <div class="flex items-center justify-between pb-3 border-b border-[#E6ECF5]">
-                <h2 class="text-lg font-extrabold text-[#0F172A]">Install VEIS App & Logo Files</h2>
+                <div class="flex items-center gap-3">
+                  <img src="${renderVeisLogoDataUrl(192, false)}" alt="VEIS Logo" class="w-11 h-11 rounded-xl shadow-xs" />
+                  <div>
+                    <h2 class="text-lg font-extrabold text-[#0F172A]">Install VEIS App & Download Logo PNGs</h2>
+                    <p class="text-xs text-[#64748B]">Add VEIS to your Home Screen or download crisp PNG logo files for GitHub.</p>
+                  </div>
+                </div>
                 <button type="button" data-action="close-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">✕</button>
               </div>
-              <div class="mt-4 space-y-4 text-sm text-[#334155]">
-                <p>Add <strong>VEIS — The City of Business</strong> to your mobile home screen for instant full-screen app access:</p>
-                <div class="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E6ECF5] space-y-1.5 text-xs">
-                  <p><strong>• Android (Chrome):</strong> Tap the <strong>⋮ Menu</strong> in the top-right corner and select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</p>
-                  <p><strong>• iPhone / iPad (Safari):</strong> Tap the <strong>Share</strong> icon at the bottom and choose <strong>"Add to Home Screen"</strong>.</p>
+
+              <div class="mt-4 space-y-4 text-xs sm:text-sm text-[#334155]">
+                <div class="p-3.5 rounded-xl bg-[#EFF6FF] border border-blue-200 space-y-1.5">
+                  <p class="font-extrabold text-[#0E1731]">How to Install on Phone or Desktop:</p>
+                  <p class="text-xs text-[#334155]">• <strong>Android / Chrome / Edge:</strong> Tap the browser menu (⋮) and choose <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</p>
+                  <p class="text-xs text-[#334155]">• <strong>iPhone / Safari:</strong> Tap the <strong>Share</strong> icon and select <strong>"Add to Home Screen"</strong>.</p>
                 </div>
 
-                <!-- Built-In Official VEIS PNG Logo & PWA Icon Generator -->
-                <div class="p-4 rounded-2xl bg-[#EFF6FF]/70 border border-blue-200 space-y-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <div>
-                      <h3 class="text-xs font-extrabold text-[#0F172A]">Official VEIS Logo & App Icons (.png)</h3>
-                      <p class="text-[11px] text-[#475569]">Download these PNG files and upload them to your GitHub repository root alongside <code>index.html</code> & <code>manifest.json</code>.</p>
-                    </div>
+                <div class="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E6ECF5] space-y-2.5">
+                  <p class="font-extrabold text-[#0F172A]">Download Official VEIS PNG Logo & App Icons:</p>
+                  <p class="text-xs text-[#64748B]">Save these PNG files into the root folder of your GitHub repository alongside your HTML file:</p>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                    <button type="button" data-action="download-single-png" data-file="logo.png" class="px-3 py-2 rounded-xl bg-white hover:bg-[#EFF6FF] border border-[#CBD5E1] text-xs font-bold text-[#0E1731] transition">
+                      ⬇ logo.png
+                    </button>
+                    <button type="button" data-action="download-single-png" data-file="icon-192.png" class="px-3 py-2 rounded-xl bg-white hover:bg-[#EFF6FF] border border-[#CBD5E1] text-xs font-bold text-[#0E1731] transition">
+                      ⬇ icon-192.png
+                    </button>
+                    <button type="button" data-action="download-single-png" data-file="icon-512.png" class="px-3 py-2 rounded-xl bg-white hover:bg-[#EFF6FF] border border-[#CBD5E1] text-xs font-bold text-[#0E1731] transition">
+                      ⬇ icon-512.png
+                    </button>
                   </div>
-
-                  <div class="grid grid-cols-3 gap-2.5 text-center">
-                    <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0] flex flex-col items-center gap-2">
-                      <img src="${logoPreview}" alt="logo.png" class="w-12 h-12 rounded-xl shadow-xs" />
-                      <span class="text-[11px] font-bold text-[#0F172A]">logo.png</span>
-                      <button type="button" data-action="download-single-png" data-file="logo.png" class="w-full py-1 rounded-lg bg-[#2255D6] text-white text-[10px] font-bold hover:bg-[#1B46B8]">Download</button>
-                    </div>
-                    <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0] flex flex-col items-center gap-2">
-                      <img src="${iconPreview}" alt="icon-192.png" class="w-12 h-12 rounded-xl shadow-xs" />
-                      <span class="text-[11px] font-bold text-[#0F172A]">icon-192.png</span>
-                      <button type="button" data-action="download-single-png" data-file="icon-192.png" class="w-full py-1 rounded-lg bg-[#2255D6] text-white text-[10px] font-bold hover:bg-[#1B46B8]">Download</button>
-                    </div>
-                    <div class="p-2.5 rounded-xl bg-white border border-[#E2E8F0] flex flex-col items-center gap-2">
-                      <img src="${iconPreview}" alt="icon-512.png" class="w-12 h-12 rounded-xl shadow-xs" />
-                      <span class="text-[11px] font-bold text-[#0F172A]">icon-512.png</span>
-                      <button type="button" data-action="download-single-png" data-file="icon-512.png" class="w-full py-1 rounded-lg bg-[#2255D6] text-white text-[10px] font-bold hover:bg-[#1B46B8]">Download</button>
-                    </div>
-                  </div>
-
-                  <button type="button" data-action="download-all-pngs" class="w-full py-2.5 rounded-xl bg-[#0E1731] hover:bg-[#1E293B] text-white text-xs font-bold transition">
-                    Download All 3 PNG Files (logo.png, icon-192.png, icon-512.png)
-                  </button>
                 </div>
               </div>
+
+              <div class="mt-5 pt-3 border-t border-[#E6ECF5] flex flex-wrap justify-between gap-2">
+                <button type="button" data-action="download-all-pngs" class="px-4 py-2 rounded-xl bg-[#0E1731] hover:bg-[#2255D6] text-white text-xs font-bold transition">
+                  Download All 3 PNGs
+                </button>
+                <button type="button" data-action="close-modal" class="px-5 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Done</button>
+              </div>
             `);
+            return;
           }
-        } else if (action === 'leave-live-stage') {
-          const id = actionEl.getAttribute('data-id');
-          const stream = state.liveStreams.find(s => s.id === id);
-          if (stream && state.currentUser) {
-            stream.guests = stream.guests.filter(g => g.id !== state.currentUser.id);
+
+          if (action === 'download-single-png') {
+            downloadSingleVeisAsset(actionBtn.dataset.file || 'logo.png');
+            return;
+          }
+
+          if (action === 'download-all-pngs') {
+            downloadAllVeisPngAssets();
+            return;
+          }
+
+          if (action === 'set-feed-filter') {
+            state.feedFilter = actionBtn.dataset.filter;
             saveState();
-            showLiveRoomModal(id, false);
-            showToast('You stepped down from the live stage.');
+            renderApp();
+            return;
           }
-        } else if (action === 'save-webinar-calendar') {
-          const id = actionEl.getAttribute('data-id');
-          const web = state.webinars.find(w => w.id === id);
-          if (web) {
-            if (!state.calendarEventIds.includes(id)) {
-              state.calendarEventIds.push(id);
+
+          if (action === 'toggle-expand-post') {
+            const id = actionBtn.dataset.id;
+            state.expandedPosts[id] = !state.expandedPosts[id];
+            renderApp();
+            return;
+          }
+
+          if (action === 'toggle-like') {
+            const post = state.posts.find(p => p.id === actionBtn.dataset.id);
+            if (post) {
+              post.likedByMe = !post.likedByMe;
+              post.likes += post.likedByMe ? 1 : -1;
+              saveState();
+              renderApp();
             }
-            downloadCalendarInvite(web);
+            return;
+          }
+
+          if (action === 'toggle-save') {
+            const id = actionBtn.dataset.id;
+            if (state.savedIds.includes(id)) {
+              state.savedIds = state.savedIds.filter(x => x !== id);
+              showToast('Removed from Saved.');
+            } else {
+              state.savedIds.push(id);
+              showToast('Saved to your collection.');
+            }
             saveState();
             renderApp();
-            showToast(`"${web.topic}" saved to your calendar!`);
+            return;
           }
-        } else if (action === 'join-webinar') {
-          const id = actionEl.getAttribute('data-id');
-          const web = state.webinars.find(w => w.id === id);
-          if (web) {
-            web.attendees += 1;
+
+          if (action === 'open-post-comments') {
+            const post = state.posts.find(p => p.id === actionBtn.dataset.id);
+            if (!post) return;
+            openModal(`
+              <div class="flex items-center justify-between pb-3 border-b border-[#E6ECF5]">
+                <h2 class="text-base font-extrabold text-[#0F172A]">Comments on ${escapeHtml(post.authorName)}'s Post</h2>
+                <button type="button" data-action="close-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">✕</button>
+              </div>
+              <div class="mt-3 space-y-2.5 max-h-60 overflow-y-auto">
+                ${(post.comments || []).length
+                  ? post.comments.map(c => `
+                    <div class="p-3 rounded-xl bg-[#F8FAFC] border border-[#E6ECF5]">
+                      <p class="text-xs font-bold text-[#0F172A]">${escapeHtml(c.author)}</p>
+                      <p class="text-xs text-[#334155] mt-0.5">${escapeHtml(c.text)}</p>
+                    </div>
+                  `).join('')
+                  : `<p class="text-xs text-[#64748B] py-4 text-center">No comments yet. Start the discussion!</p>`}
+              </div>
+              <form id="addCommentForm" data-id="${escapeHtml(post.id)}" class="mt-4 flex gap-2">
+                <input id="commentTextInput" type="text" required placeholder="Write a thoughtful business comment..." class="flex-1 px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-sm" />
+                <button type="submit" class="px-4 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Post</button>
+              </form>
+            `);
+            return;
+          }
+
+          if (action === 'share-item') {
+            showToast(`Link copied for "${actionBtn.dataset.title || 'VEIS'}"!`);
+            return;
+          }
+
+          if (action === 'open-create-post') {
+            showCreatePostModal();
+            return;
+          }
+
+          if (action === 'open-promote-post') {
+            showPromotePostModal(actionBtn.dataset.id);
+            return;
+          }
+
+          if (action === 'open-go-live') {
+            showGoLiveModal(actionBtn.dataset.mode || 'Net Live');
+            return;
+          }
+
+          if (action === 'fill-live-heading') {
+            const inp = document.getElementById('liveHeadingInput');
+            if (inp) inp.value = actionBtn.dataset.text || '';
+            return;
+          }
+
+          if (action === 'open-live-room') {
+            showLiveRoomModal(actionBtn.dataset.id, actionBtn.dataset.joinStage === 'true');
+            return;
+          }
+
+          if (action === 'leave-live-stage') {
+            const stream = state.liveStreams.find(s => s.id === actionBtn.dataset.id);
+            if (stream && state.currentUser) {
+              stream.guests = stream.guests.filter(g => g.id !== state.currentUser.id);
+              saveState();
+              showLiveRoomModal(stream.id, false);
+              showToast('You left the Net Live stage.');
+            }
+            return;
+          }
+
+          if (action === 'toggle-live-video') {
+            const stream = state.liveStreams.find(s => s.id === actionBtn.dataset.id);
+            if (stream) {
+              stream.showVideo = !stream.showVideo;
+              saveState();
+              showLiveRoomModal(stream.id, false);
+              showToast(stream.showVideo ? 'Camera video turned ON.' : 'Camera video hidden (audio & avatar active).');
+            }
+            return;
+          }
+
+          if (action === 'request-native-fullscreen') {
+            const dialog = document.getElementById('modalDialog');
+            if (dialog && dialog.requestFullscreen) {
+              dialog.requestFullscreen().catch(() => showToast('Use your browser or device full-screen controls for expanded view.'));
+            } else {
+              showToast('Expanded full-screen live view active.');
+            }
+            return;
+          }
+
+          if (action === 'save-webinar-calendar') {
+            const id = actionBtn.dataset.id;
+            if (state.calendarEventIds.includes(id)) {
+              state.calendarEventIds = state.calendarEventIds.filter(x => x !== id);
+              showToast('Removed webinar from your calendar.');
+            } else {
+              state.calendarEventIds.push(id);
+              showToast('Webinar saved to your calendar!');
+            }
             saveState();
             renderApp();
-            showToast(`You are registered for "${web.topic}"!`);
+            return;
           }
-        } else if (action === 'view-member') {
-          const id = actionEl.getAttribute('data-id');
-          if (state.currentUser && id === state.currentUser.id) {
-            state.currentRoute = 'profile';
-            state.routeParam = null;
-          } else {
+
+          if (action === 'join-webinar') {
+            const w = state.webinars.find(x => x.id === actionBtn.dataset.id);
+            if (w) {
+              if (!state.calendarEventIds.includes(w.id)) state.calendarEventIds.push(w.id);
+              w.attendees += 1;
+              saveState();
+              renderApp();
+              showToast(`Seat reserved for "${w.topic}" & added to your calendar!`);
+            }
+            return;
+          }
+
+          if (action === 'view-member') {
             state.currentRoute = 'member-profile';
-            state.routeParam = id;
+            state.routeParam = actionBtn.dataset.id;
+            closeModal();
+            renderApp();
+            return;
           }
-          renderApp();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else if (action === 'message-member') {
-          const memberId = actionEl.getAttribute('data-id');
-          const member = state.members.find(m => m.id === memberId);
-          if (member) {
-            let chat = state.messages.find(c => c.partnerId === member.id);
+
+          if (action === 'toggle-connect') {
+            const m = state.members.find(x => x.id === actionBtn.dataset.id);
+            if (m) {
+              m.connected = !m.connected;
+              saveState();
+              renderApp();
+              showToast(m.connected ? `Connected with ${m.name}!` : `Disconnected from ${m.name}.`);
+            }
+            return;
+          }
+
+          if (action === 'message-member') {
+            const m = state.members.find(x => x.id === actionBtn.dataset.id);
+            if (!m) return;
+            let chat = state.messages.find(c => c.partnerId === m.id);
             if (!chat) {
               chat = {
-                id: 'chat-' + member.id,
-                partnerId: member.id,
-                partnerName: member.name,
-                partnerInitials: member.initials,
-                partnerRole: member.role,
-                partnerSubscription: member.subscription || 'free',
+                id: 'chat-' + m.id,
+                partnerId: m.id,
+                partnerName: m.name,
+                partnerInitials: m.initials,
+                partnerRole: m.role,
+                partnerSubscription: m.subscription,
                 thread: []
               };
               state.messages.unshift(chat);
@@ -4136,435 +4167,504 @@ Where businesses connect, opportunities emerge and economic growth begins.`
             state.mobileChatOpen = true;
             state.currentRoute = 'messages';
             saveState();
+            closeModal();
             renderApp();
-            setTimeout(() => {
-              const box = document.getElementById('chatMessagesScroll');
-              if (box) box.scrollTop = box.scrollHeight;
-              document.getElementById('quickMessageInput')?.focus();
-            }, 50);
+            return;
           }
-        } else if (action === 'select-chat') {
-          state.activeChatId = actionEl.getAttribute('data-id');
-          state.mobileChatOpen = true;
-          renderApp();
-          setTimeout(() => {
-            const box = document.getElementById('chatMessagesScroll');
-            if (box) box.scrollTop = box.scrollHeight;
-          }, 30);
-        } else if (action === 'close-mobile-chat') {
-          state.mobileChatOpen = false;
-          renderApp();
-        } else if (action === 'toggle-connect') {
-          const id = actionEl.getAttribute('data-id');
-          const m = state.members.find(x => x.id === id);
-          if (m) {
-            m.connected = !m.connected;
+
+          if (action === 'select-chat') {
+            state.activeChatId = actionBtn.dataset.id;
+            state.mobileChatOpen = true;
             saveState();
             renderApp();
-            showToast(m.connected ? `Connected with ${m.name}!` : `Disconnected from ${m.name}.`);
+            return;
           }
-        } else if (action === 'open-edit-profile') {
-          showEditProfileModal();
-        } else if (action === 'open-subscription') {
-          showSubscriptionModal();
-        } else if (action === 'preview-subscription-tier') {
-          const tier = actionEl.getAttribute('data-tier');
-          stopKycCameraStream();
-          showSubscriptionModal(tier);
-        } else if (action === 'open-kyc-camera') {
-          const prefix = actionEl.getAttribute('data-prefix') || 'authKyc';
-          const stageEl = document.getElementById(prefix + 'SelfieCameraStage');
-          const snapBox = document.getElementById(prefix + 'SelfieCapturedBox');
-          if (snapBox) snapBox.classList.add('hidden');
-          if (stageEl) stageEl.classList.remove('hidden');
-          startKycSelfieCamera(prefix);
-        } else if (action === 'capture-kyc-selfie') {
-          const prefix = actionEl.getAttribute('data-prefix') || 'authKyc';
-          captureKycSelfieSnapshot(prefix);
-        } else if (action === 'retake-kyc-selfie') {
-          const prefix = actionEl.getAttribute('data-prefix') || 'authKyc';
-          const store = getKycStore(prefix);
-          store.selfieCapturedDataUrl = '';
-          store.matchStatus = 'idle';
-          const statusBox = document.getElementById(prefix + 'MatchStatusBox');
-          if (statusBox) statusBox.innerHTML = '';
-          const snapBox = document.getElementById(prefix + 'SelfieCapturedBox');
-          if (snapBox) snapBox.classList.add('hidden');
-          const stageEl = document.getElementById(prefix + 'SelfieCameraStage');
-          if (stageEl) stageEl.classList.remove('hidden');
-          startKycSelfieCamera(prefix);
-        } else if (action === 'run-id-selfie-match') {
-          const prefix = actionEl.getAttribute('data-prefix') || 'authKyc';
-          runIdSelfieMatchAlgorithm(prefix);
-        } else if (action === 'set-theme') {
-          state.theme = actionEl.getAttribute('data-theme') || 'light';
-          saveState();
-          renderApp();
-          showToast(`Switched to ${state.theme === 'dark' ? 'Dark' : 'Light'} Mode.`);
-        } else if (action === 'toggle-setting') {
-          const key = actionEl.getAttribute('data-key');
-          state.settings[key] = !state.settings[key];
-          saveState();
-          renderApp();
-        } else if (action === 'open-auth') {
-          showAuthModal(actionEl.getAttribute('data-mode') || 'login', 'free');
-        } else if (action === 'logout') {
-          state.currentUser = null;
-          saveState();
-          renderApp();
-          showAuthModal('login');
-          showToast('Signed out of VEIS.');
-        } else if (action === 'open-legal') {
-          showLegalModal(actionEl.getAttribute('data-doc'));
-        } else if (action === 'read-wisdom') {
-          const art = state.wisdomArticles.find(a => a.id === actionEl.getAttribute('data-id'));
-          if (art) {
+
+          if (action === 'close-mobile-chat') {
+            state.mobileChatOpen = false;
+            renderApp();
+            return;
+          }
+
+          if (action === 'open-edit-profile') {
+            showEditProfileModal();
+            return;
+          }
+
+          if (action === 'open-subscription') {
+            showSubscriptionModal(null);
+            return;
+          }
+
+          if (action === 'preview-subscription-tier') {
+            showSubscriptionModal(actionBtn.dataset.tier);
+            return;
+          }
+
+          if (action === 'open-kyc-camera') {
+            const prefix = actionBtn.dataset.prefix || 'subKyc';
+            const stageEl = document.getElementById(prefix + 'SelfieCameraStage');
+            if (stageEl) stageEl.classList.remove('hidden');
+            startKycSelfieCamera(prefix);
+            return;
+          }
+
+          if (action === 'capture-kyc-selfie') {
+            const prefix = actionBtn.dataset.prefix || 'subKyc';
+            captureKycSelfieSnapshot(prefix);
+            return;
+          }
+
+          if (action === 'run-id-selfie-match') {
+            const prefix = actionBtn.dataset.prefix || 'subKyc';
+            runIdSelfieMatchAlgorithm(prefix);
+            return;
+          }
+
+          if (action === 'retake-kyc-selfie') {
+            const prefix = actionBtn.dataset.prefix || 'subKyc';
+            const store = getKycStore(prefix);
+            store.selfieCapturedDataUrl = '';
+            store.matchStatus = 'idle';
+            const snapBox = document.getElementById(prefix + 'SelfieCapturedBox');
+            const statusBox = document.getElementById(prefix + 'MatchStatusBox');
+            if (snapBox) {
+              snapBox.classList.add('hidden');
+              snapBox.innerHTML = '';
+            }
+            if (statusBox) statusBox.innerHTML = '';
+            const stageEl = document.getElementById(prefix + 'SelfieCameraStage');
+            if (stageEl) stageEl.classList.remove('hidden');
+            startKycSelfieCamera(prefix);
+            return;
+          }
+
+          if (action === 'missing-social') {
+            showToast(`${actionBtn.dataset.label} link hasn't been added yet.`);
+            return;
+          }
+
+          if (action === 'set-theme') {
+            state.theme = actionBtn.dataset.theme;
+            saveState();
+            renderApp();
+            showToast(`${state.theme === 'dark' ? 'Dark' : 'Light'} mode enabled.`);
+            return;
+          }
+
+          if (action === 'toggle-setting') {
+            const key = actionBtn.dataset.key;
+            state.settings[key] = !state.settings[key];
+            saveState();
+            renderApp();
+            return;
+          }
+
+          if (action === 'open-publish-wisdom') {
+            showPublishWisdomModal();
+            return;
+          }
+
+          if (action === 'open-publish-opportunity') {
+            showPublishOpportunityModal();
+            return;
+          }
+
+          if (action === 'open-publish-event') {
+            showPublishEventModal();
+            return;
+          }
+
+          if (action === 'open-create-group') {
+            showCreateGroupModal();
+            return;
+          }
+
+          if (action === 'read-wisdom') {
+            const art = state.wisdomArticles.find(a => a.id === actionBtn.dataset.id);
+            if (!art) return;
             openModal(`
               <div class="flex items-center justify-between pb-3 border-b border-[#E6ECF5]">
-                <span class="px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#2255D6] text-xs font-bold">${escapeHtml(art.category)}</span>
+                <div>
+                  <span class="text-xs font-bold text-[#2255D6]">${escapeHtml(art.category)} • ${escapeHtml(art.readTime)}</span>
+                  <h2 class="text-lg font-extrabold text-[#0F172A] mt-0.5">${escapeHtml(art.title)}</h2>
+                </div>
                 <button type="button" data-action="close-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">✕</button>
               </div>
-              <h2 class="text-lg font-extrabold text-[#0F172A] mt-3">${escapeHtml(art.title)}</h2>
-              <p class="text-xs text-[#64748B] mt-1 flex items-center gap-1.5">
-                <span>By <strong class="text-[#0F172A]">${escapeHtml(art.author)}</strong></span>
-                ${renderSubscriptionBadge(art.authorSubscription)}
-                <span>• ${escapeHtml(art.readTime)}</span>
-              </p>
-              <p class="mt-4 text-sm text-[#1E293B] leading-relaxed">${escapeHtml(art.body)}</p>
+              <p class="text-xs text-[#64748B] mt-2">Written by <strong>${escapeHtml(art.author)}</strong></p>
+              <div class="mt-4 text-sm text-[#1E293B] leading-relaxed whitespace-pre-line">${escapeHtml(art.body)}</div>
+              <div class="mt-5 pt-3 border-t border-[#E6ECF5] flex justify-end">
+                <button type="button" data-action="close-modal" class="px-4 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Done Reading</button>
+              </div>
             `);
+            return;
           }
-        } else if (action === 'toggle-group') {
-          const g = state.groups.find(x => x.id === actionEl.getAttribute('data-id'));
-          if (g) {
-            g.joined = !g.joined;
-            g.membersCount += g.joined ? 1 : -1;
+
+          if (action === 'apply-opportunity') {
+            showToast(`Application / inquiry submitted for "${actionBtn.dataset.title}".`);
+            return;
+          }
+
+          if (action === 'toggle-group') {
+            const g = state.groups.find(x => x.id === actionBtn.dataset.id);
+            if (g) {
+              g.joined = !g.joined;
+              g.membersCount += g.joined ? 1 : -1;
+              saveState();
+              renderApp();
+              showToast(g.joined ? `Joined ${g.name}!` : `Left ${g.name}.`);
+            }
+            return;
+          }
+
+          if (action === 'toggle-event-rsvp') {
+            const ev = state.events.find(x => x.id === actionBtn.dataset.id);
+            if (ev) {
+              ev.rsvped = !ev.rsvped;
+              saveState();
+              renderApp();
+              showToast(ev.rsvped ? `RSVP confirmed for ${ev.title}!` : `RSVP cancelled.`);
+            }
+            return;
+          }
+
+          if (action === 'open-auth') {
+            showAuthModal(actionBtn.dataset.mode || 'login', 'free');
+            return;
+          }
+
+          if (action === 'logout') {
+            state.currentUser = null;
             saveState();
             renderApp();
-            showToast(g.joined ? `Joined ${g.name}!` : `Left ${g.name}.`);
+            showToast('You have logged out of VEIS.');
+            showAuthModal('login', 'free');
+            return;
           }
-        } else if (action === 'toggle-event-rsvp') {
-          const ev = state.events.find(x => x.id === actionEl.getAttribute('data-id'));
-          if (ev) {
-            ev.rsvped = !ev.rsvped;
-            saveState();
-            renderApp();
-            showToast(ev.rsvped ? `RSVP confirmed for ${ev.title}!` : 'RSVP cancelled.');
+
+          if (action === 'open-legal') {
+            showLegalModal(actionBtn.dataset.doc);
+            return;
           }
-        } else if (action === 'apply-opportunity') {
-          showToast(`Application / inquiry submitted for "${actionEl.getAttribute('data-title')}"!`);
-        } else if (action === 'share-item') {
-          showToast(`Share link copied for ${actionEl.getAttribute('data-title')}!`);
-        } else if (action === 'missing-social') {
-          showToast(`This member hasn't linked their ${actionEl.getAttribute('data-label')} yet.`);
-        } else if (action === 'close-modal') {
+
+          if (action === 'close-modal') {
+            closeModal();
+            return;
+          }
+        }
+
+        if (routeBtn) {
+          e.preventDefault();
+          state.currentRoute = routeBtn.dataset.route;
+          state.routeParam = null;
+          state.notifDropdownOpen = false;
+          document.getElementById('leftSidebar')?.classList.add('-translate-x-full');
+          document.getElementById('mobileSidebarBackdrop')?.classList.add('hidden');
           closeModal();
+          renderApp();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
 
       document.addEventListener('change', (e) => {
-        if (!e.target) return;
-
-        if (e.target.name === 'authSubscription') {
-          const chosenTier = e.target.value;
-          stopKycCameraStream();
-          window.__kycState_authKyc = {
-            idDocName: '',
-            bizRegName: '',
-            selfieCapturedDataUrl: '',
-            selfieTimestamp: '',
-            matchStatus: 'idle',
-            matchScore: 0,
-            matchSummary: ''
-          };
-          const dynBox = document.getElementById('authKycDynamicContainer');
-          if (dynBox) {
-            dynBox.innerHTML = renderKycVerificationFields(chosenTier, 'authKyc');
-          }
-        }
-
-        if (e.target.id === 'authKycIdFile' && e.target.files?.[0]) {
-          const name = e.target.files[0].name;
-          const store = getKycStore('authKyc');
-          store.idDocName = name;
-          const lbl = document.getElementById('authKycIdFileName');
-          if (lbl) lbl.textContent = '✓ ' + name;
-          if (store.selfieCapturedDataUrl && store.matchStatus !== 'matched') {
-            runIdSelfieMatchAlgorithm('authKyc');
-          }
-        }
-        if (e.target.id === 'authKycBizFile' && e.target.files?.[0]) {
-          const name = e.target.files[0].name;
-          const store = getKycStore('authKyc');
-          store.bizRegName = name;
-          const lbl = document.getElementById('authKycBizFileName');
-          if (lbl) lbl.textContent = '✓ ' + name;
-        }
-
-        if (e.target.id === 'subKycIdFile' && e.target.files?.[0]) {
-          const name = e.target.files[0].name;
-          const store = getKycStore('subKyc');
-          store.idDocName = name;
-          const lbl = document.getElementById('subKycIdFileName');
-          if (lbl) lbl.textContent = '✓ ' + name;
-          if (store.selfieCapturedDataUrl && store.matchStatus !== 'matched') {
-            runIdSelfieMatchAlgorithm('subKyc');
-          }
-        }
-        if (e.target.id === 'subKycBizFile' && e.target.files?.[0]) {
-          const name = e.target.files[0].name;
-          const store = getKycStore('subKyc');
-          store.bizRegName = name;
-          const lbl = document.getElementById('subKycBizFileName');
-          if (lbl) lbl.textContent = '✓ ' + name;
-        }
-
         if (e.target.id === 'newPostPromoteCheck') {
           const fields = document.getElementById('newPostPromoteFields');
-          if (fields) {
-            if (e.target.checked) fields.classList.remove('hidden');
-            else fields.classList.add('hidden');
-          }
+          if (fields) fields.classList.toggle('hidden', !e.target.checked);
         }
 
-        if (e.target.id === 'newPostImageFile') {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            window.__pendingPostMedia = { type: 'image', url: reader.result, name: file.name };
-            const prevEl = document.getElementById('newPostMediaPreview');
-            if (prevEl) {
-              prevEl.innerHTML = `
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs font-bold text-[#2255D6]">Photo ready: ${escapeHtml(file.name)}</span>
-                  <button type="button" data-action="clear-post-media" class="text-xs font-bold text-rose-600 hover:underline">Remove</button>
-                </div>
-                <img src="${reader.result}" alt="Preview" class="w-full max-h-56 object-cover rounded-lg" />
-              `;
-              prevEl.classList.remove('hidden');
-            }
-            const vidInput = document.getElementById('newPostVideoFile');
-            if (vidInput) vidInput.value = '';
-          };
-          reader.readAsDataURL(file);
-        }
-
-        if (e.target.id === 'newPostVideoFile') {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const objectUrl = URL.createObjectURL(file);
-          window.__pendingPostMedia = { type: 'video', url: objectUrl, name: file.name };
-          const prevEl = document.getElementById('newPostMediaPreview');
-          if (prevEl) {
-            prevEl.innerHTML = `
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-bold text-[#2255D6]">Video ready: ${escapeHtml(file.name)}</span>
-                <button type="button" data-action="clear-post-media" class="text-xs font-bold text-rose-600 hover:underline">Remove</button>
+        if (e.target.id === 'newPostImageFile' && e.target.files?.[0]) {
+          const file = e.target.files[0];
+          const url = URL.createObjectURL(file);
+          window.__pendingPostMedia = { type: 'image', url, name: file.name };
+          const prev = document.getElementById('newPostMediaPreview');
+          if (prev) {
+            prev.classList.remove('hidden');
+            prev.innerHTML = `
+              <div class="flex items-center justify-between text-xs font-bold text-[#0F172A] mb-2">
+                <span>Photo Selected: ${escapeHtml(file.name)}</span>
+                <button type="button" id="clearPostMediaBtn" class="text-rose-600 hover:underline">Remove</button>
               </div>
-              <video src="${objectUrl}" controls class="w-full max-h-56 rounded-lg bg-black"></video>
+              <img src="${url}" alt="Preview" class="w-full max-h-48 object-cover rounded-lg" />
             `;
-            prevEl.classList.remove('hidden');
+            document.getElementById('clearPostMediaBtn')?.addEventListener('click', () => {
+              window.__pendingPostMedia = { type: 'none', url: '', name: '' };
+              prev.classList.add('hidden');
+              prev.innerHTML = '';
+            });
           }
-          const imgInput = document.getElementById('newPostImageFile');
-          if (imgInput) imgInput.value = '';
         }
 
-        if (e.target.id === 'profilePhotoFile') {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const urlInp = document.getElementById('profileAvatarUrlInput');
-            if (urlInp) urlInp.value = reader.result;
-            showToast('Profile photo ready — click Save Profile to apply.');
-          };
-          reader.readAsDataURL(file);
+        if (e.target.id === 'newPostVideoFile' && e.target.files?.[0]) {
+          const file = e.target.files[0];
+          const url = URL.createObjectURL(file);
+          window.__pendingPostMedia = { type: 'video', url, name: file.name };
+          const prev = document.getElementById('newPostMediaPreview');
+          if (prev) {
+            prev.classList.remove('hidden');
+            prev.innerHTML = `
+              <div class="flex items-center justify-between text-xs font-bold text-[#0F172A] mb-2">
+                <span>Video Selected: ${escapeHtml(file.name)}</span>
+                <button type="button" id="clearPostMediaBtn" class="text-rose-600 hover:underline">Remove</button>
+              </div>
+              <video src="${url}" controls class="w-full max-h-48 rounded-lg bg-black"></video>
+            `;
+            document.getElementById('clearPostMediaBtn')?.addEventListener('click', () => {
+              window.__pendingPostMedia = { type: 'none', url: '', name: '' };
+              prev.classList.add('hidden');
+              prev.innerHTML = '';
+            });
+          }
+        }
+
+        if (e.target.name === 'authSubscription') {
+          const tier = e.target.value;
+          const dyn = document.getElementById('authKycDynamicContainer');
+          if (dyn) {
+            dyn.innerHTML = renderKycVerificationFields(tier, 'authKyc');
+          }
+        }
+
+        if (e.target.id && (e.target.id.endsWith('IdFile') || e.target.id.endsWith('BizFile'))) {
+          const isId = e.target.id.endsWith('IdFile');
+          const prefix = e.target.id.replace(/IdFile$|BizFile$/, '');
+          const store = getKycStore(prefix);
+          const fileName = e.target.files?.[0]?.name || '';
+          if (isId) {
+            store.idDocName = fileName;
+            const lbl = document.getElementById(prefix + 'IdFileName');
+            if (lbl) lbl.textContent = fileName ? '✓ ' + fileName : 'Upload Smart ID / Passport...';
+            if (fileName && store.selfieCapturedDataUrl && store.matchStatus !== 'matched') {
+              runIdSelfieMatchAlgorithm(prefix);
+            }
+          } else {
+            store.bizRegName = fileName;
+            const lbl = document.getElementById(prefix + 'BizFileName');
+            if (lbl) lbl.textContent = fileName ? '✓ ' + fileName : 'Upload CIPC / Company Cert...';
+          }
+        }
+
+        if (e.target.id === 'profilePhotoFile' && e.target.files?.[0]) {
+          const url = URL.createObjectURL(e.target.files[0]);
+          const urlInput = document.getElementById('profileAvatarUrlInput');
+          if (urlInput) urlInput.value = url;
+          showToast('Profile photo attached!');
         }
       });
 
       document.addEventListener('submit', (e) => {
-        if (e.target.id === 'upgradeSubscriptionForm') {
+        if (e.target.id === 'createPostForm') {
           e.preventDefault();
-          if (!state.currentUser) return;
-          const targetTier = e.target.getAttribute('data-target-tier') || 'free';
-          const kyc = getKycStore('subKyc');
-
-          if (targetTier === 'standard') {
-            if (!kyc.idDocName || !kyc.selfieCapturedDataUrl) {
-              showToast('Standard Account requires uploading your Government ID and capturing a live Selfie.');
-              return;
-            }
-            if (kyc.matchStatus !== 'matched') {
-              runIdSelfieMatchAlgorithm('subKyc');
-              showToast('Please wait for the ID-to-Selfie match check to complete.');
-              return;
-            }
-            state.currentUser.verificationStatus = 'Verified (ID & Live Selfie Match 97.4%)';
-            state.currentUser.verificationDocs = {
-              idDocName: kyc.idDocName,
-              selfieName: 'Live_Selfie_' + (kyc.selfieTimestamp || 'Verified'),
-              bizRegName: ''
-            };
-          } else if (targetTier === 'business') {
-            if (!kyc.idDocName || !kyc.bizRegName || !kyc.selfieCapturedDataUrl) {
-              showToast('Business Account requires Government ID, Business Registration docs, and a live Selfie.');
-              return;
-            }
-            if (kyc.matchStatus !== 'matched') {
-              runIdSelfieMatchAlgorithm('subKyc');
-              showToast('Please wait for the ID-to-Selfie match check to complete.');
-              return;
-            }
-            state.currentUser.verificationStatus = 'Verified (ID, Business Reg & Live Selfie Match 97.4%)';
-            state.currentUser.verificationDocs = {
-              idDocName: kyc.idDocName,
-              selfieName: 'Live_Selfie_' + (kyc.selfieTimestamp || 'Verified'),
-              bizRegName: kyc.bizRegName
-            };
-          } else {
-            state.currentUser.verificationStatus = 'Standard Member';
-          }
-
-          state.currentUser.subscription = targetTier;
-          saveState();
-          closeModal();
-          renderApp();
-          showToast(`Activated ${getSubscriptionLabel(targetTier)}!`);
-        } else if (e.target.id === 'createPostForm') {
-          e.preventDefault();
-          const content = document.getElementById('newPostText').value.trim();
-          const pending = window.__pendingPostMedia || { type: 'none', url: '' };
-
-          if (!content && pending.type === 'none') {
-            showToast('Please write something or upload a photo or video.');
+          if (!state.currentUser) {
+            showToast('Please sign in or create an account to publish a post.');
+            showAuthModal('signup', 'free');
             return;
           }
-
-          const user = state.currentUser || { id: 'guest', name: 'Andile Mani', initials: 'AM', avatarUrl: '', subscription: 'standard' };
+          const text = (document.getElementById('newPostText')?.value || '').trim();
+          const media = window.__pendingPostMedia || { type: 'none', url: '' };
+          const hasMedia = media.type !== 'none' && !!media.url;
+          if (!text && !hasMedia) {
+            showToast('Please enter a description or upload a photo or video.');
+            return;
+          }
           const isPromoted = !!document.getElementById('newPostPromoteCheck')?.checked;
           const ctaLabel = isPromoted ? (document.getElementById('newPostCtaLabel')?.value || 'Learn More') : '';
-          let ctaUrl = isPromoted ? (document.getElementById('newPostCtaUrl')?.value.trim() || '') : '';
-          if (ctaUrl && !ctaUrl.startsWith('http') && !ctaUrl.startsWith('#')) {
-            ctaUrl = 'https://' + ctaUrl;
-          }
+          const ctaUrl = isPromoted ? (document.getElementById('newPostCtaUrl')?.value || '#') : '';
+          const author = state.currentUser;
 
           state.posts.unshift({
             id: 'post-' + Date.now(),
-            authorId: user.id,
-            authorName: user.name,
-            authorInitials: user.initials,
-            authorAvatar: user.avatarUrl || '',
-            authorSubscription: user.subscription || 'free',
+            authorId: author.id,
+            authorName: author.name,
+            authorInitials: author.initials,
+            authorAvatar: author.avatarUrl || '',
+            authorSubscription: author.subscription || 'free',
             date: isPromoted ? 'Promoted' : 'Just now',
             category: 'Posts',
             isPromoted,
             ctaLabel,
             ctaUrl,
-            mediaType: pending.type,
-            mediaUrl: pending.url,
-            content,
-            likes: 0,
-            likedByMe: false,
+            mediaType: media.type,
+            mediaUrl: media.url,
+            content: text,
+            likes: 1,
+            likedByMe: true,
             comments: []
           });
           window.__pendingPostMedia = { type: 'none', url: '', name: '' };
           saveState();
           closeModal();
           renderApp();
-          showToast(isPromoted ? 'Promoted post published to Community Feed!' : 'Post published to Community Feed!');
-        } else if (e.target.id === 'promotePostForm') {
+          showToast(isPromoted ? 'Promoted post published!' : 'Post published to Community Feed!');
+        }
+
+        if (e.target.id === 'promotePostForm') {
           e.preventDefault();
-          const postId = e.target.getAttribute('data-id');
-          const post = state.posts.find(p => p.id === postId);
+          const post = state.posts.find(p => p.id === e.target.dataset.id);
           if (!post) return;
-          const tier = document.querySelector('input[name="promoTier"]:checked')?.value || 'R30';
-          const ctaLabel = document.getElementById('promoCtaLabelInput')?.value || 'Learn More';
-          let ctaUrl = document.getElementById('promoCtaUrlInput')?.value.trim() || '';
-          if (ctaUrl && !ctaUrl.startsWith('http') && !ctaUrl.startsWith('#')) {
-            ctaUrl = 'https://' + ctaUrl;
-          }
           post.isPromoted = true;
           post.date = 'Promoted';
-          post.ctaLabel = ctaLabel;
-          post.ctaUrl = ctaUrl;
-          state.posts = [post, ...state.posts.filter(p => p.id !== postId)];
+          post.ctaLabel = document.getElementById('promoCtaLabelInput')?.value || 'Learn More';
+          post.ctaUrl = (document.getElementById('promoCtaUrlInput')?.value || '').trim() || '#';
           saveState();
           closeModal();
           renderApp();
-          showToast(`Promotion activated (${tier})! Your post is now featured at the top of the feed.`);
-        } else if (e.target.id === 'publishWisdomForm') {
-          e.preventDefault();
-          const author = document.getElementById('wisdomAuthorInput').value.trim();
-          const category = document.getElementById('wisdomCategoryInput').value;
-          const title = document.getElementById('wisdomTitleInput').value.trim();
-          const summary = document.getElementById('wisdomSummaryInput').value.trim();
-          const body = document.getElementById('wisdomBodyInput').value.trim();
-          if (!title || !body) return;
+          showToast('Post is now Promoted in the Community Feed!');
+        }
 
-          const wordCount = body.split(/\s+/).length;
-          const readTime = Math.max(2, Math.ceil(wordCount / 180)) + ' min read';
+        if (e.target.id === 'goLiveForm') {
+          e.preventDefault();
+          if (!state.currentUser) {
+            showToast('Please sign in or create an account to start a Live broadcast.');
+            showAuthModal('signup', 'free');
+            return;
+          }
+          const mode = e.target.querySelector('input[name="liveMode"]:checked')?.value || 'Net Live';
+          const heading = (document.getElementById('liveHeadingInput')?.value || '').trim();
+          const schedule = document.getElementById('liveScheduleInput')?.value || 'LIVE NOW';
+          const maxGuests = parseInt(document.getElementById('liveSeatsInput')?.value || '4', 10);
+          const desc = (document.getElementById('liveDescInput')?.value || '').trim();
+          const showVideo = (e.target.querySelector('input[name="liveVideoVis"]:checked')?.value || 'show') === 'show';
+          if (!heading) return;
+
+          const host = state.currentUser;
+
+          if (mode === 'Webinar Live') {
+            const newWebinar = {
+              id: 'web-' + Date.now(),
+              topic: heading,
+              category: 'Educational Webinar',
+              hostName: host.name,
+              hostInitials: host.initials,
+              hostSubscription: host.subscription || 'free',
+              status: schedule,
+              dateLabel: schedule === 'LIVE NOW' ? 'Live Now • Educational Session' : 'Scheduled Webinar • Save to Calendar',
+              isoStart: '20261125T150000Z',
+              isoEnd: '20261125T163000Z',
+              description: desc || 'Educational session hosted on VEIS — save to your calendar to attend.',
+              attendees: 1
+            };
+            state.webinars.unshift(newWebinar);
+            state.calendarEventIds.push(newWebinar.id);
+          }
+
+          const newStream = {
+            id: 'live-' + Date.now(),
+            mode,
+            heading,
+            hostId: host.id,
+            hostName: host.name,
+            hostInitials: host.initials,
+            hostSubscription: host.subscription || 'free',
+            status: 'LIVE',
+            showVideo,
+            viewers: 1,
+            maxGuests: mode === 'Live' ? 1 : maxGuests,
+            guests: [{ id: host.id, name: host.name, initials: host.initials, role: 'Host', showVideo }],
+            chat: [{ author: 'VEIS Studio', text: `${host.name} started "${heading}" (${mode}) with video ${showVideo ? 'ON' : 'HIDDEN'}.` }]
+          };
+          state.liveStreams.unshift(newStream);
+          saveState();
+          renderApp();
+          showLiveRoomModal(newStream.id, false);
+        }
+
+        if (e.target.id === 'liveRoomChatForm') {
+          e.preventDefault();
+          const stream = state.liveStreams.find(s => s.id === e.target.dataset.id);
+          const inp = document.getElementById('liveRoomChatInput');
+          const txt = (inp?.value || '').trim();
+          if (!stream || !txt) return;
+          stream.chat.push({ author: state.currentUser ? state.currentUser.name : 'You', text: txt });
+          saveState();
+          showLiveRoomModal(stream.id, false);
+        }
+
+        if (e.target.id === 'addCommentForm') {
+          e.preventDefault();
+          const post = state.posts.find(p => p.id === e.target.dataset.id);
+          const inp = document.getElementById('commentTextInput');
+          const txt = (inp?.value || '').trim();
+          if (!post || !txt) return;
+          post.comments = post.comments || [];
+          post.comments.push({ id: 'c-' + Date.now(), author: state.currentUser ? state.currentUser.name : 'You', text: txt });
+          saveState();
+          renderApp();
+          showToast('Comment posted!');
+        }
+
+        if (e.target.id === 'publishWisdomForm') {
+          e.preventDefault();
+          const title = (document.getElementById('wisdomTitleInput')?.value || '').trim();
+          const category = document.getElementById('wisdomCategoryInput')?.value || 'Strategy';
+          const summary = (document.getElementById('wisdomSummaryInput')?.value || '').trim();
+          const body = (document.getElementById('wisdomBodyInput')?.value || '').trim();
+          const author = (document.getElementById('wisdomAuthorInput')?.value || '').trim() || (state.currentUser ? state.currentUser.name : 'VEIS Member');
+          if (!title || !summary || !body) return;
           state.wisdomArticles.unshift({
             id: 'wis-' + Date.now(),
             category,
             title,
-            author: author || (state.currentUser ? state.currentUser.name : 'VEIS Member'),
-            authorSubscription: state.currentUser?.subscription || 'standard',
-            readTime,
+            author,
+            authorSubscription: state.currentUser?.subscription || 'free',
+            readTime: '4 min read',
             summary,
             body
           });
           saveState();
           closeModal();
           renderApp();
-          showToast(`Business Wisdom "${title}" published!`);
-        } else if (e.target.id === 'publishOpportunityForm') {
-          e.preventDefault();
-          const title = document.getElementById('oppTitleInput').value.trim();
-          const org = document.getElementById('oppOrgInput').value.trim();
-          const badge = document.getElementById('oppBadgeInput').value;
-          const location = document.getElementById('oppLocationInput').value.trim();
-          const description = document.getElementById('oppDescInput').value.trim();
-          if (!title || !description) return;
+          showToast('Business Wisdom article published!');
+        }
 
+        if (e.target.id === 'publishOpportunityForm') {
+          e.preventDefault();
+          const title = (document.getElementById('oppTitleInput')?.value || '').trim();
+          const org = (document.getElementById('oppOrgInput')?.value || '').trim();
+          const badge = document.getElementById('oppBadgeInput')?.value || 'Open Tender';
+          const location = (document.getElementById('oppLocationInput')?.value || '').trim();
+          const description = (document.getElementById('oppDescInput')?.value || '').trim();
+          if (!title || !org || !description) return;
           state.opportunities.unshift({
             id: 'opp-' + Date.now(),
             title,
             org,
             badge,
-            location,
+            location: location || 'South Africa',
             description
           });
           saveState();
           closeModal();
           renderApp();
-          showToast(`Opportunity "${title}" published!`);
-        } else if (e.target.id === 'publishEventForm') {
-          e.preventDefault();
-          const title = document.getElementById('evtTitleInput').value.trim();
-          const date = document.getElementById('evtDateInput').value.trim();
-          const location = document.getElementById('evtLocationInput').value.trim();
-          const description = document.getElementById('evtDescInput').value.trim();
-          if (!title || !date) return;
+          showToast('Opportunity published!');
+        }
 
+        if (e.target.id === 'publishEventForm') {
+          e.preventDefault();
+          const title = (document.getElementById('evtTitleInput')?.value || '').trim();
+          const date = (document.getElementById('evtDateInput')?.value || '').trim();
+          const location = (document.getElementById('evtLocationInput')?.value || '').trim();
+          const description = (document.getElementById('evtDescInput')?.value || '').trim();
+          if (!title || !date || !description) return;
           state.events.unshift({
             id: 'evt-' + Date.now(),
             title,
             date,
-            location,
+            location: location || 'VEIS Virtual & Hub',
             rsvped: true,
             description
           });
           saveState();
           closeModal();
           renderApp();
-          showToast(`Event "${title}" published!`);
-        } else if (e.target.id === 'createGroupForm') {
-          e.preventDefault();
-          const name = document.getElementById('grpNameInput').value.trim();
-          const category = document.getElementById('grpCategoryInput').value;
-          const description = document.getElementById('grpDescInput').value.trim();
-          if (!name || !description) return;
+          showToast('Event published & RSVP confirmed!');
+        }
 
+        if (e.target.id === 'createGroupForm') {
+          e.preventDefault();
+          const name = (document.getElementById('grpNameInput')?.value || '').trim();
+          const category = document.getElementById('grpCategoryInput')?.value || 'General Entrepreneurship';
+          const description = (document.getElementById('grpDescInput')?.value || '').trim();
+          if (!name || !description) return;
           state.groups.unshift({
             id: 'grp-' + Date.now(),
             name,
@@ -4576,153 +4676,133 @@ Where businesses connect, opportunities emerge and economic growth begins.`
           saveState();
           closeModal();
           renderApp();
-          showToast(`Group "${name}" created! You are the founding member.`);
-        } else if (e.target.id === 'goLiveForm') {
-          e.preventDefault();
-          const mode = document.querySelector('input[name="liveMode"]:checked')?.value || 'Net Live';
-          const heading = document.getElementById('liveHeadingInput').value.trim();
-          const sched = document.getElementById('liveScheduleInput').value;
-          const maxGuests = parseInt(document.getElementById('liveSeatsInput').value, 10) || 4;
-          const showVideo = (document.querySelector('input[name="liveVideoVis"]:checked')?.value || 'show') === 'show';
-          const desc = document.getElementById('liveDescInput').value.trim();
-          const user = state.currentUser || { id: 'user-andile', name: 'Andile Mani', initials: 'AM', subscription: 'standard' };
+          showToast(`Created and joined "${name}"!`);
+        }
 
-          if (mode === 'Webinar Live') {
-            const newWeb = {
-              id: 'web-' + Date.now(),
-              topic: heading,
-              category: 'Educational Webinar',
-              hostName: user.name,
-              hostInitials: user.initials,
-              hostSubscription: user.subscription || 'free',
-              status: sched,
-              dateLabel: sched === 'LIVE NOW' ? 'Live Now • Educational Session' : 'Scheduled • Save to Calendar',
-              isoStart: '20261125T160000Z',
-              isoEnd: '20261125T173000Z',
-              description: desc || 'Educational webinar hosted on VEIS — The City of Business.',
-              attendees: 1
-            };
-            state.webinars.unshift(newWeb);
-            saveState();
-            closeModal();
-            state.currentRoute = 'live';
-            renderApp();
-            showToast(`Webinar "${heading}" published!`);
-          } else {
-            const newStream = {
-              id: 'live-' + Date.now(),
-              mode,
-              heading,
-              hostId: user.id,
-              hostName: user.name,
-              hostInitials: user.initials,
-              hostSubscription: user.subscription || 'free',
-              status: 'LIVE',
-              showVideo,
-              viewers: 1,
-              maxGuests: mode === 'Live' ? 1 : maxGuests,
-              guests: [{ id: user.id, name: user.name, initials: user.initials, role: 'Host', showVideo }],
-              chat: [{ author: 'VEIS Bot', text: `Welcome to "${heading}"! Invite others to watch and engage.` }]
-            };
-            state.liveStreams.unshift(newStream);
-            saveState();
-            closeModal();
-            renderApp();
-            showLiveRoomModal(newStream.id, false);
-          }
-        } else if (e.target.id === 'liveRoomChatForm') {
-          e.preventDefault();
-          const id = e.target.getAttribute('data-id');
-          const inp = document.getElementById('liveRoomChatInput');
-          const stream = state.liveStreams.find(s => s.id === id);
-          if (stream && inp && inp.value.trim()) {
-            stream.chat.push({
-              author: state.currentUser ? state.currentUser.name : 'Guest',
-              text: inp.value.trim()
-            });
-            saveState();
-            showLiveRoomModal(id, false);
-          }
-        } else if (e.target.id === 'postCommentForm') {
-          e.preventDefault();
-          const id = e.target.getAttribute('data-id');
-          const inp = document.getElementById('postCommentInput');
-          const post = state.posts.find(p => p.id === id);
-          if (post && inp && inp.value.trim()) {
-            post.comments.push({
-              id: 'c-' + Date.now(),
-              author: state.currentUser ? state.currentUser.name : 'Member',
-              text: inp.value.trim()
-            });
-            saveState();
-            closeModal();
-            renderApp();
-            showToast('Comment added!');
-          }
-        } else if (e.target.id === 'editProfileForm') {
+        if (e.target.id === 'editProfileForm') {
           e.preventDefault();
           if (!state.currentUser) return;
-          state.currentUser.name = document.getElementById('editNameInput').value.trim() || state.currentUser.name;
-          state.currentUser.initials = getInitials(state.currentUser.name);
-          state.currentUser.role = document.getElementById('editRoleInput').value.trim();
-          state.currentUser.venture = document.getElementById('editVentureInput').value.trim();
-          state.currentUser.location = document.getElementById('editLocationInput').value.trim();
-          state.currentUser.bio = document.getElementById('editBioInput').value.trim();
-          state.currentUser.avatarUrl = document.getElementById('profileAvatarUrlInput').value.trim();
-
-          const updatedSocials = {};
-          document.querySelectorAll('.social-link-input').forEach(input => {
-            const key = input.getAttribute('data-social-key');
-            updatedSocials[key] = input.value.trim();
+          const name = (document.getElementById('editNameInput')?.value || '').trim();
+          if (!name) return;
+          state.currentUser.name = name;
+          state.currentUser.initials = getInitials(name);
+          state.currentUser.role = (document.getElementById('editRoleInput')?.value || '').trim();
+          state.currentUser.venture = (document.getElementById('editVentureInput')?.value || '').trim();
+          state.currentUser.location = (document.getElementById('editLocationInput')?.value || '').trim();
+          state.currentUser.bio = (document.getElementById('editBioInput')?.value || '').trim();
+          state.currentUser.avatarUrl = (document.getElementById('profileAvatarUrlInput')?.value || '').trim();
+          const updatedSocials = { ...(state.currentUser.socials || {}) };
+          e.target.querySelectorAll('.social-link-input').forEach(inp => {
+            updatedSocials[inp.dataset.socialKey] = inp.value.trim();
           });
           state.currentUser.socials = updatedSocials;
-
           saveState();
           closeModal();
           renderApp();
-          showToast('Profile, photo & social shortcuts updated!');
-        } else if (e.target.id === 'authForm') {
+          showToast('Profile & social links updated!');
+        }
+
+        if (e.target.id === 'upgradeSubscriptionForm') {
           e.preventDefault();
-          const mode = e.target.getAttribute('data-mode');
-          const email = document.getElementById('authEmail').value.trim().toLowerCase();
-          const password = document.getElementById('authPassword').value;
-
-          if (mode === 'signup') {
-            const name = document.getElementById('authName').value.trim();
-            const role = document.getElementById('authRole').value;
-            const venture = document.getElementById('authVenture').value.trim() || 'Independent Venture';
-            const subscription = document.querySelector('input[name="authSubscription"]:checked')?.value || 'free';
-            const kyc = getKycStore('authKyc');
-
-            if (subscription === 'standard') {
-              if (!kyc.idDocName || !kyc.selfieCapturedDataUrl) {
-                showToast('Standard Account requires uploading your Government ID and capturing a live Selfie.');
-                return;
-              }
-              if (kyc.matchStatus !== 'matched') {
-                runIdSelfieMatchAlgorithm('authKyc');
-                showToast('Please complete the ID-to-Selfie match check before creating your account.');
-                return;
-              }
+          if (!state.currentUser) return;
+          const tier = e.target.dataset.targetTier || 'free';
+          if (tier !== 'free') {
+            const store = getKycStore('subKyc');
+            const idFile = store.idDocName || document.getElementById('subKycIdFile')?.files?.[0]?.name || '';
+            const bizFile = store.bizRegName || document.getElementById('subKycBizFile')?.files?.[0]?.name || '';
+            const hasSelfie = !!store.selfieCapturedDataUrl;
+            if (!idFile) {
+              showToast('Please upload your Government ID document to verify this plan.');
+              return;
             }
-            if (subscription === 'business') {
-              if (!kyc.idDocName || !kyc.bizRegName || !kyc.selfieCapturedDataUrl) {
-                showToast('Business Account requires Government ID, Business Registration docs, and a live Selfie.');
-                return;
-              }
-              if (kyc.matchStatus !== 'matched') {
-                runIdSelfieMatchAlgorithm('authKyc');
-                showToast('Please complete the ID-to-Selfie match check before creating your account.');
-                return;
-              }
+            if (tier === 'business' && !bizFile) {
+              showToast('Please upload Business Registration documents for a Business Account.');
+              return;
+            }
+            if (!hasSelfie) {
+              showToast('Please capture a live selfie using the camera so we can match it with your ID.');
+              return;
+            }
+            if (store.matchStatus !== 'matched') {
+              runIdSelfieMatchAlgorithm('subKyc');
+              showToast('Matching your live selfie with your uploaded ID — please wait a moment and submit.');
+              return;
+            }
+            state.currentUser.verificationDocs = { idDocName: idFile, selfieName: `LiveSelfie_${store.selfieTimestamp}.jpg`, bizRegName: bizFile };
+            state.currentUser.verificationStatus = tier === 'business'
+              ? 'Verified (ID, Business Docs & Matched Live Selfie • 97.4%)'
+              : 'Verified (ID & Matched Live Selfie • 97.4%)';
+          } else {
+            state.currentUser.verificationStatus = 'Unverified Free Tier';
+          }
+          state.currentUser.subscription = tier;
+          saveState();
+          closeModal();
+          renderApp();
+          showToast(`Updated to ${getSubscriptionLabel(tier)}!`);
+        }
+
+        if (e.target.id === 'authForm') {
+          e.preventDefault();
+          const mode = e.target.dataset.mode;
+          const email = (document.getElementById('authEmail')?.value || '').trim().toLowerCase();
+          const password = document.getElementById('authPassword')?.value || '';
+
+          if (mode === 'login') {
+            const found = state.registeredUsers.find(u => u.email.toLowerCase() === email);
+            if (!found) {
+              showToast('No account found with that email. Please create an account first.');
+              showAuthModal('signup', 'free');
+              return;
+            }
+            if (found.password && found.password !== password) {
+              showToast('Incorrect password. Please try again.');
+              return;
+            }
+            state.currentUser = { ...found, socials: { ...DEFAULT_SOCIALS, ...(found.socials || {}) } };
+            saveState();
+            closeModal();
+            renderApp();
+            showToast(`Welcome back, ${state.currentUser.name}!`);
+          } else {
+            const name = (document.getElementById('authName')?.value || '').trim();
+            const role = document.getElementById('authRole')?.value || 'Founder & Entrepreneur';
+            const venture = (document.getElementById('authVenture')?.value || '').trim() || 'VEIS Venture';
+            const sub = e.target.querySelector('input[name="authSubscription"]:checked')?.value || 'free';
+            if (!name || !email) return;
+            if (state.registeredUsers.some(u => u.email.toLowerCase() === email)) {
+              showToast('An account with this email already exists. Please sign in.');
+              showAuthModal('login', 'free');
+              return;
             }
 
-            const verificationStatus =
-              subscription === 'business'
-                ? 'Verified (ID, Business Reg & Live Selfie Match 97.4%)'
-                : subscription === 'standard'
-                ? 'Verified (ID & Live Selfie Match 97.4%)'
-                : 'Standard Member';
+            let verificationStatus = 'Unverified Free Tier';
+            if (sub !== 'free') {
+              const store = getKycStore('authKyc');
+              const idFile = store.idDocName || document.getElementById('authKycIdFile')?.files?.[0]?.name || '';
+              const bizFile = store.bizRegName || document.getElementById('authKycBizFile')?.files?.[0]?.name || '';
+              const hasSelfie = !!store.selfieCapturedDataUrl;
+              if (!idFile) {
+                showToast('Please upload your Government ID document for verified accounts.');
+                return;
+              }
+              if (sub === 'business' && !bizFile) {
+                showToast('Please upload Business Registration documents for a Business Account.');
+                return;
+              }
+              if (!hasSelfie) {
+                showToast('Please capture a live selfie using the camera so we can match it with your ID.');
+                return;
+              }
+              if (store.matchStatus !== 'matched') {
+                runIdSelfieMatchAlgorithm('authKyc');
+                showToast('Matching your live selfie with your uploaded ID — please wait a moment and submit.');
+                return;
+              }
+              verificationStatus = sub === 'business'
+                ? 'Verified (ID, Business Docs & Matched Live Selfie • 97.4%)'
+                : 'Verified (ID & Matched Live Selfie • 97.4%)';
+            }
 
             const newUser = {
               id: 'user-' + Date.now(),
@@ -4733,131 +4813,127 @@ Where businesses connect, opportunities emerge and economic growth begins.`
               role,
               venture,
               location: 'South Africa',
-              bio: `Building ${venture} and connecting with fellow entrepreneurs on VEIS.`,
-              subscription,
+              bio: 'Entrepreneur on VEIS — The City of Business.',
+              subscription: sub,
               verificationStatus,
-              verificationDocs: {
-                idDocName: kyc.idDocName,
-                selfieName: kyc.selfieCapturedDataUrl ? 'Live_Selfie_' + (kyc.selfieTimestamp || 'Verified') : '',
-                bizRegName: kyc.bizRegName
-              },
               avatarUrl: '',
               socials: { ...DEFAULT_SOCIALS, email }
             };
             state.registeredUsers.push(newUser);
-            state.currentUser = newUser;
+            state.currentUser = { ...newUser };
             saveState();
             closeModal();
             renderApp();
             showToast(`Welcome to VEIS, ${name}!`);
-          } else {
-            const found = state.registeredUsers.find(u => u.email.toLowerCase() === email);
-            if (found) {
-              state.currentUser = found;
-            } else {
-              state.currentUser = {
-                ...INITIAL_STATE.currentUser,
-                email,
-                name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-                initials: getInitials(email.split('@')[0])
-              };
-            }
-            saveState();
-            closeModal();
-            renderApp();
-            showToast(`Signed in as ${state.currentUser.name}`);
           }
-        } else if (e.target.id === 'quickMessageForm') {
+        }
+
+        if (e.target.id === 'quickMessageForm') {
           e.preventDefault();
-          const chatId = e.target.getAttribute('data-chat-id') || state.activeChatId;
-          const chat = state.messages.find(c => c.id === chatId) || state.messages[0];
+          const chat = state.messages.find(c => c.id === e.target.dataset.chatId);
           const inp = document.getElementById('quickMessageInput');
-          if (chat && inp && inp.value.trim()) {
-            chat.thread.push({
-              from: state.currentUser ? state.currentUser.name : 'You',
-              text: inp.value.trim(),
-              time: 'Just now'
-            });
-            state.mobileChatOpen = true;
-            saveState();
-            renderApp();
-            setTimeout(() => {
-              const box = document.getElementById('chatMessagesScroll');
-              if (box) box.scrollTop = box.scrollHeight;
-              document.getElementById('quickMessageInput')?.focus();
-            }, 50);
-          }
-        }
-      });
-
-      document.getElementById('globalSearchInput')?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          state.searchQuery = e.target.value.trim();
-          state.currentRoute = state.searchQuery ? 'search' : 'home';
+          const txt = (inp?.value || '').trim();
+          if (!chat || !txt) return;
+          const timeLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const senderName = state.currentUser ? state.currentUser.name : 'Andile Mani';
+          chat.thread.push({ from: senderName, text: txt, time: timeLabel });
+          saveState();
           renderApp();
+          const scrollEl = document.getElementById('chatMessagesScroll');
+          if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         }
       });
 
-      document.getElementById('modalOverlay')?.addEventListener('click', (e) => {
-        if (e.target.id === 'modalOverlay') closeModal();
+      const searchInput = document.getElementById('globalSearchInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          state.searchQuery = e.target.value.trim();
+          if (state.searchQuery.length > 0) {
+            state.currentRoute = 'search';
+            renderApp();
+          } else if (state.currentRoute === 'search') {
+            state.currentRoute = 'home';
+            renderApp();
+          }
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        if (state.notifDropdownOpen && !e.target.closest('[data-action="toggle-notif-dropdown"]') && !e.target.closest('.absolute.right-0.mt-2')) {
+          state.notifDropdownOpen = false;
+          renderHeaderControls();
+        }
       });
 
-      window.__deferredPwaPrompt = null;
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        window.__deferredPwaPrompt = e;
-      });
+      // Installable PWA Setup: Dynamic Manifest + Service Worker Registration
+      (function setupVeisPwa() {
+        window.__deferredPwaPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          window.__deferredPwaPrompt = e;
+        });
 
-      (function initPwaSupport() {
         try {
           const icon192 = renderVeisLogoDataUrl(192, false);
           const icon512 = renderVeisLogoDataUrl(512, false);
 
-          const faviconEl = document.querySelector('link[rel="icon"]');
-          if (faviconEl) faviconEl.setAttribute('href', icon192);
-          const appleTouchEl = document.querySelector('link[rel="apple-touch-icon"]');
-          if (appleTouchEl) appleTouchEl.setAttribute('href', icon192);
+          const favLink = document.querySelector('link[rel="icon"]');
+          if (favLink) favLink.href = icon192;
+          const appleLink = document.querySelector('link[rel="apple-touch-icon"]');
+          if (appleLink) appleLink.href = icon192;
 
           const manifestObj = {
             name: 'VEIS — The City of Business',
             short_name: 'VEIS',
-            description: 'Verified Economic Identity System — Connect with founders, go live, host educational webinars, and access business wisdom.',
-            start_url: './index.html',
+            description: 'Verified Economic Identity System — Entrepreneur Community, Live, Net Live, Webinars & Business Wisdom.',
+            start_url: './',
             scope: './',
             display: 'standalone',
             background_color: '#0E1731',
             theme_color: '#0E1731',
             orientation: 'portrait-primary',
             icons: [
-              {
-                src: icon192,
-                sizes: '192x192',
-                type: 'image/png',
-                purpose: 'any maskable'
-              },
-              {
-                src: icon512,
-                sizes: '512x512',
-                type: 'image/png',
-                purpose: 'any maskable'
-              }
+              { src: './icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+              { src: './icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+              { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any' },
+              { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any' }
             ]
           };
+
           const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
           const manifestUrl = URL.createObjectURL(manifestBlob);
-          const linkEl = document.getElementById('pwaManifestLink');
-          if (linkEl && window.location.protocol === 'blob:') {
-            linkEl.setAttribute('href', manifestUrl);
-          }
-
-          if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
-            navigator.serviceWorker.register('./sw.js').catch(() => {});
-          }
+          const manifestEl = document.getElementById('pwaManifestLink');
+          if (manifestEl) manifestEl.setAttribute('href', manifestUrl);
         } catch (err) {}
+
+        if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+          const swCode = `
+            const CACHE_NAME = 'veis-city-of-business-v1';
+            self.addEventListener('install', (event) => {
+              self.skipWaiting();
+            });
+            self.addEventListener('activate', (event) => {
+              event.waitUntil(self.clients.claim());
+            });
+            self.addEventListener('fetch', (event) => {
+              if (event.request.method !== 'GET') return;
+              event.respondWith(
+                fetch(event.request).catch(() => caches.match(event.request))
+              );
+            });
+          `;
+          try {
+            const swBlob = new Blob([swCode], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(swBlob);
+            navigator.serviceWorker.register(swUrl).catch(() => {});
+          } catch (err) {}
+        }
       })();
 
-      window.addEventListener('DOMContentLoaded', renderApp);
       renderApp();
+      if (!state.currentUser) {
+        showAuthModal('login', 'free');
+      }
     })();
   </script>
 </body>
