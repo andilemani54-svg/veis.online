@@ -18,6 +18,11 @@
   <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; }
+    .veis-post-text-collapsed { max-height: 8.25em; overflow: hidden; position: relative; }
+    .veis-post-text-collapsed::after { content: ''; position: absolute; inset: auto 0 0; height: 1.8em; background: linear-gradient(transparent, #fff); pointer-events: none; }
+    .veis-post-text-toggle { margin-top: .45rem; color: #2255D6; font-size: 12px; font-weight: 800; }
+    .veis-library-cover { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; background: #F1F5F9; }
+
     html, body {
       width: 100%;
       min-height: 100vh;
@@ -1932,6 +1937,7 @@
         { route: 'wallet', label: 'Wallet', badge: 'V-COINS', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z"/></svg>` },
         { route: 'saved', label: 'Saved', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-7-3.5L5 21V5z"/></svg>` },
         { route: 'analytics', label: 'Analytics', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>` },
+        { route: 'business-library', label: 'Business Library', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>` },
         { route: 'wisdom', label: 'Business Wisdom', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>` },
         { route: 'grants', label: 'Funding & Grants', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>` },
         { route: 'capital', label: 'Capital Raise', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>` },
@@ -2139,6 +2145,24 @@
         `;
       }
 
+      function renderPostInlineText(value) {
+        // Escape user content first; only then add a small allow-listed set of formatting tags.
+        let safe = escapeHtml(String(value || ''));
+        safe = safe.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+        safe = safe.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+          const cleanUrl = url.replace(/[),.!?;:]+$/g, '');
+          const trailing = url.slice(cleanUrl.length);
+          return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-[#2255D6] underline break-words">${cleanUrl}</a>${trailing}`;
+        });
+        return safe;
+      }
+
+      function renderPostBody(content) {
+        return String(content || '').split(/\n\n+/).map(block =>
+          `<p>${renderPostInlineText(block).replace(/\n/g, '<br>')}</p>`
+        ).join('');
+      }
+
       function renderPostCard(post) {
         const isSaved = state.savedIds.includes(post.id);
         const hasText = (post.content || '').trim().length > 0;
@@ -2201,7 +2225,8 @@
 
             ${hasText ? `
               <div class="veis-post-content mt-4 text-[14px] leading-[1.65] text-[#1E293B] space-y-3">
-                ${(post.content || '').split(/\n\n+/).map(block => `<p>${escapeHtml(block)}</p>`).join('')}
+                <div class="veis-post-text${(post.content || '').length > 420 ? ' veis-post-text-collapsed' : ''}" data-post-text="${escapeHtml(post.id)}">${renderPostBody(post.content || '')}</div>
+                ${(post.content || '').length > 420 ? `<button type="button" class="veis-post-text-toggle" data-action="toggle-post-expand" data-id="${escapeHtml(post.id)}" aria-expanded="false">Show More</button>` : ''}
               </div>
             ` : ''}
 
@@ -3380,9 +3405,187 @@
         `;
       }
 
+      async function loadBusinessLibrary(force = false) {
+        if (!supabaseClient) {
+          window.__veisBusinessLibraryError = 'The VEIS database connection is unavailable. Please refresh and try again.';
+          if (state.currentRoute === 'business-library') renderApp();
+          return;
+        }
+        if (window.__veisBusinessLibraryLoading || (window.__veisBusinessLibraryLoaded && !force)) return;
+        window.__veisBusinessLibraryLoading = true;
+        window.__veisBusinessLibraryError = '';
+        try {
+          const { data, error } = await supabaseClient.from('veis_business_library')
+            .select('id,title,author,summary,book_url,cover_path,created_by,created_at,updated_at')
+            .order('created_at', { ascending: false });
+          if (error) throw error;
+          state.businessLibraryItems = data || [];
+          window.__veisBusinessLibraryLoaded = true;
+        } catch (error) {
+          console.error('VEIS Business Library load failed:', error);
+          window.__veisBusinessLibraryError = error.message || 'Could not load the Business Library. Check table access policies.';
+        } finally {
+          window.__veisBusinessLibraryLoading = false;
+          if (state.currentRoute === 'business-library') renderApp();
+        }
+      }
+
+      function canManageBusinessLibrary() {
+        return !!state.currentUser && (isUserAdmin() || (isCurrentUserApprovedMentor() && hasActiveMentorMembership()));
+      }
+
+      function showBusinessLibraryForm(item = null) {
+        if (!canManageBusinessLibrary()) {
+          showToast('Only VEIS Admins and approved mentors with an active membership can add resources.');
+          return;
+        }
+        const editing = !!item;
+        openModal(`
+          <div>
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <div><h2 class="text-lg font-extrabold text-[#0F172A]">${editing ? 'Edit Library Resource' : 'Add to Business Library'}</h2>
+              <p class="text-xs text-[#64748B] mt-1">Share a book or useful business resource with the VEIS community.</p></div>
+              <button type="button" data-action="close-modal" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <form id="businessLibraryForm" data-id="${editing ? escapeHtml(item.id) : ''}" class="space-y-3">
+              <div><label class="block text-xs font-bold text-[#334155] mb-1">Title *</label><input id="businessLibraryTitle" required maxlength="180" value="${escapeHtml(item?.title || '')}" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-sm" placeholder="Book or resource title" /></div>
+              <div><label class="block text-xs font-bold text-[#334155] mb-1">Author *</label><input id="businessLibraryAuthor" required maxlength="180" value="${escapeHtml(item?.author || '')}" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-sm" placeholder="Author or organization" /></div>
+              <div><label class="block text-xs font-bold text-[#334155] mb-1">Summary *</label><textarea id="businessLibrarySummary" required rows="4" maxlength="4000" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-sm" placeholder="What will readers learn?">${escapeHtml(item?.summary || '')}</textarea></div>
+              <div><label class="block text-xs font-bold text-[#334155] mb-1">Book / Resource URL *</label><input id="businessLibraryUrl" required type="url" value="${escapeHtml(item?.book_url || '')}" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-sm" placeholder="https://..." /></div>
+              <div><label class="block text-xs font-bold text-[#334155] mb-1">Book Cover Image ${editing ? '(optional — choose to replace)' : '(optional)'}</label><input id="businessLibraryCover" type="file" accept="image/jpeg,image/png,image/webp" class="w-full text-xs" /><p class="mt-1 text-[11px] text-[#64748B]">JPG, PNG or WebP. Maximum 5 MB.</p></div>
+              <div class="flex justify-end gap-2 pt-2"><button type="button" data-action="close-modal" class="px-4 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-bold">Cancel</button><button type="submit" class="px-5 py-2.5 rounded-xl bg-[#2255D6] text-white text-xs font-bold">${editing ? 'Save Changes' : 'Publish Resource'}</button></div>
+            </form>
+          </div>`);
+      }
+
+      async function saveBusinessLibraryResource(form) {
+        if (!canManageBusinessLibrary() || !supabaseClient) {
+          showToast('You do not have permission to publish library resources.');
+          return;
+        }
+        const id = form.getAttribute('data-id') || '';
+        const existing = id ? (state.businessLibraryItems || []).find(x => x.id === id) : null;
+        if (id && !existing) { showToast('This library resource could not be found.'); return; }
+        if (existing && !isUserAdmin() && existing.created_by !== state.currentUser.id) {
+          showToast('You can only edit resources you added.');
+          return;
+        }
+        const title = document.getElementById('businessLibraryTitle')?.value.trim() || '';
+        const author = document.getElementById('businessLibraryAuthor')?.value.trim() || '';
+        const summary = document.getElementById('businessLibrarySummary')?.value.trim() || '';
+        const book_url = document.getElementById('businessLibraryUrl')?.value.trim() || '';
+        const file = document.getElementById('businessLibraryCover')?.files?.[0] || null;
+        if (!/^https?:\/\//i.test(book_url)) { showToast('Enter a valid http or https resource URL.'); return; }
+        if (file && (!/^image\/(jpeg|png|webp)$/i.test(file.type) || file.size > 5 * 1024 * 1024)) {
+          showToast('Choose a JPG, PNG or WebP cover image smaller than 5 MB.');
+          return;
+        }
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit) { submit.disabled = true; submit.textContent = 'Saving…'; }
+        try {
+          let cover_path = existing?.cover_path || null;
+          if (file) {
+            const ext = file.type === 'image/png' ? 'png' : (file.type === 'image/webp' ? 'webp' : 'jpg');
+            const objectPath = `${state.currentUser.id}/${window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}.${ext}`;
+            const { error: uploadError } = await supabaseClient.storage.from('veis-business-library-covers')
+              .upload(objectPath, file, { upsert: false, contentType: file.type, cacheControl: '3600' });
+            if (uploadError) throw uploadError;
+            cover_path = objectPath;
+          }
+          const payload = { title, author, summary, book_url, cover_path, updated_at: new Date().toISOString() };
+          let result;
+          if (existing) {
+            result = await supabaseClient.from('veis_business_library').update(payload).eq('id', id).select().single();
+          } else {
+            result = await supabaseClient.from('veis_business_library').insert({
+              ...payload, created_by: state.currentUser.id
+            }).select().single();
+          }
+          if (result.error) throw result.error;
+          if (file && existing?.cover_path && existing.cover_path !== cover_path) {
+            const { error: oldCoverError } = await supabaseClient.storage.from('veis-business-library-covers').remove([existing.cover_path]);
+            if (oldCoverError) console.warn('Old cover cleanup warning:', oldCoverError.message);
+          }
+          closeModal();
+          await loadBusinessLibrary(true);
+          showToast(existing ? 'Business Library resource updated.' : 'Resource added to the Business Library.');
+        } catch (error) {
+          console.error('VEIS Business Library save failed:', error);
+          showToast(error.message || 'Could not save the resource. Check your Supabase table and Storage policies.');
+          if (submit) { submit.disabled = false; submit.textContent = existing ? 'Save Changes' : 'Publish Resource'; }
+        }
+      }
+
+      async function deleteBusinessLibraryResource(id) {
+        const item = (state.businessLibraryItems || []).find(x => x.id === id);
+        if (!item || !canManageBusinessLibrary() || (!isUserAdmin() && item.created_by !== state.currentUser.id)) {
+          showToast('You do not have permission to delete this resource.');
+          return;
+        }
+        if (!confirm(`Delete "${item.title}" from the Business Library?`)) return;
+        try {
+          const { error } = await supabaseClient.from('veis_business_library').delete().eq('id', id);
+          if (error) throw error;
+          if (item.cover_path && (isUserAdmin() || item.created_by === state.currentUser.id)) {
+            const { error: storageError } = await supabaseClient.storage.from('veis-business-library-covers').remove([item.cover_path]);
+            if (storageError) console.warn('Cover cleanup warning:', storageError.message);
+          }
+          await loadBusinessLibrary(true);
+          showToast('Library resource deleted.');
+        } catch (error) {
+          console.error('VEIS Business Library delete failed:', error);
+          showToast(error.message || 'Could not delete this resource.');
+        }
+      }
+
       function renderSecondaryDestination(route) {
         if (!Array.isArray(state.businessPlans)) state.businessPlans = [];
         const adminMode = isUserAdmin();
+
+        if (route === 'business-library') {
+          const items = Array.isArray(state.businessLibraryItems) ? state.businessLibraryItems : [];
+          const canAdd = !!state.currentUser && (isUserAdmin() || (isCurrentUserApprovedMentor() && hasActiveMentorMembership()));
+          const loading = !!window.__veisBusinessLibraryLoading;
+          const loadError = window.__veisBusinessLibraryError || '';
+          return `
+            <section class="space-y-5">
+              <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-wider text-[#2255D6]">VEIS Knowledge Hub</p>
+                  <h1 class="text-2xl font-extrabold text-[#0F172A]">Business Library</h1>
+                  <p class="text-sm text-[#64748B] mt-1">Books and practical resources for entrepreneurs, founders and business builders.</p>
+                </div>
+                ${canAdd ? `<button type="button" data-action="add-business-library-item" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2255D6] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#1B46B8]">＋ Add Resource</button>` : ''}
+              </div>
+              ${!state.currentUser ? `<div class="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">Sign in to access the VEIS Business Library.</div>` : ''}
+              ${loadError ? `<div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">${escapeHtml(loadError)}</div>` : ''}
+              ${loading ? `<div class="rounded-2xl border border-[#E6ECF5] bg-white p-8 text-center text-sm text-[#64748B]">Loading business resources…</div>` : ''}
+              ${!loading && !loadError && items.length ? `
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  ${items.map(item => {
+                    const cover = item.cover_path && supabaseClient
+                      ? supabaseClient.storage.from('veis-business-library-covers').getPublicUrl(item.cover_path).data.publicUrl
+                      : '';
+                    const canManage = !!state.currentUser && (isUserAdmin() || item.created_by === state.currentUser.id);
+                    const href = /^https?:\/\//i.test(item.book_url || '') ? item.book_url : '';
+                    return `
+                      <article class="min-w-0 overflow-hidden rounded-2xl border border-[#E6ECF5] bg-white shadow-sm">
+                        ${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(item.title)}" class="veis-library-cover" loading="lazy" />` : `<div class="veis-library-cover flex items-center justify-center text-5xl">📘</div>`}
+                        <div class="p-4 space-y-2">
+                          <h2 class="text-base font-extrabold text-[#0F172A] break-words">${escapeHtml(item.title)}</h2>
+                          <p class="text-xs font-semibold text-[#2255D6]">${escapeHtml(item.author || 'Unknown author')}</p>
+                          <p class="text-sm text-[#475569] leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(item.summary || '')}</p>
+                          <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+                            ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="inline-flex rounded-xl bg-[#2255D6] px-3.5 py-2 text-xs font-bold text-white">Open Resource ↗</a>` : `<span class="text-xs text-slate-400">No valid resource link</span>`}
+                            ${canManage ? `<span class="flex gap-2"><button type="button" data-action="edit-business-library-item" data-id="${escapeHtml(item.id)}" class="text-xs font-bold text-[#2255D6]">Edit</button><button type="button" data-action="delete-business-library-item" data-id="${escapeHtml(item.id)}" class="text-xs font-bold text-rose-600">Delete</button></span>` : ''}
+                          </div>
+                        </div>
+                      </article>`;
+                  }).join('')}
+                </div>
+              ` : (!loading && !loadError ? `<div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-white p-8 text-center"><div class="text-4xl mb-3">📚</div><h2 class="font-bold text-[#0F172A]">The library is ready for its first resource</h2><p class="mt-1 text-sm text-[#64748B]">${canAdd ? 'Add a book or business resource to get started.' : 'Approved VEIS contributors will add resources here.'}</p></div>` : '')}
+            </section>`;
+        }
 
         // MODERN DIGITAL E-WALLET FOR VEIS V-COINS
         if (route === 'wallet') {
@@ -4726,6 +4929,9 @@
         }
 
         const route = state.currentRoute;
+        if (route === 'business-library' && !window.__veisBusinessLibraryLoaded && !window.__veisBusinessLibraryLoading) {
+          window.setTimeout(() => loadBusinessLibrary(), 0);
+        }
         if (route === 'home') container.innerHTML = renderHomeView();
         else if (route === 'live') container.innerHTML = renderLiveDestinationView();
         else if (route === 'profile') container.innerHTML = renderProfileView(state.routeParam);
@@ -5913,7 +6119,22 @@
 
         const action = actionTarget.getAttribute('data-action');
 
-        if (action === 'toggle-post-menu') {
+        if (action === 'toggle-post-expand') {
+          const postId = actionTarget.getAttribute('data-id');
+          const text = document.querySelector(`[data-post-text="${CSS.escape(postId)}"]`);
+          if (!text) return;
+          const expanded = actionTarget.getAttribute('aria-expanded') === 'true';
+          text.classList.toggle('veis-post-text-collapsed', expanded);
+          actionTarget.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+          actionTarget.textContent = expanded ? 'Show More' : 'Show Less';
+        } else if (action === 'add-business-library-item') {
+          showBusinessLibraryForm();
+        } else if (action === 'edit-business-library-item') {
+          const item = (state.businessLibraryItems || []).find(x => x.id === actionTarget.getAttribute('data-id'));
+          if (item) showBusinessLibraryForm(item);
+        } else if (action === 'delete-business-library-item') {
+          deleteBusinessLibraryResource(actionTarget.getAttribute('data-id'));
+        } else if (action === 'toggle-post-menu') {
           const wrap = actionTarget.closest('.veis-post-menu-wrap');
           const menu = wrap?.querySelector('.veis-post-menu');
           const willOpen = !!menu?.classList.contains('hidden');
@@ -6967,6 +7188,12 @@
           post.editedAt = new Date().toISOString();
           post.date = 'Edited just now';
           saveState(); closeModal(); renderApp(); showToast('Your post has been updated.');
+          return;
+        }
+
+        if (e.target.id === 'businessLibraryForm') {
+          e.preventDefault();
+          await saveBusinessLibraryResource(e.target);
           return;
         }
 
