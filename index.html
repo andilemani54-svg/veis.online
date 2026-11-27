@@ -801,7 +801,8 @@
           'Dr Mani': ['#173B73', '#53B6E8', 'DM'],
           'Prof Mani': ['#145A45', '#8ED6B2', 'PM'],
           'Mr Mani': ['#713B20', '#F2B66D', 'MM'],
-          'Adv. Mani': ['#563B75', '#B99AE8', 'AM']
+          'Adv. Mani': ['#563B75', '#B99AE8', 'AM'],
+          'Coach Mani': ['#8A4B18', '#F5B65C', 'CM']
         };
         const [a, b, initials] = palettes[name] || ['#334155', '#94A3B8', 'AI'];
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="240" height="240" rx="120" fill="url(#g)"/><circle cx="120" cy="88" r="43" fill="#F2C7A5"/><path d="M77 85c2-48 82-65 92 0-17-13-28-18-47-18-18 0-29 8-45 18" fill="#263244"/><path d="M49 224c5-56 31-82 71-82s66 26 71 82" fill="#F4F7FB"/><path d="M95 145l25 29 25-29" fill="none" stroke="${a}" stroke-width="9"/><circle cx="105" cy="91" r="4" fill="#263244"/><circle cx="136" cy="91" r="4" fill="#263244"/><path d="M108 112q12 9 24 0" fill="none" stroke="#9B5D4B" stroke-width="4" stroke-linecap="round"/><circle cx="192" cy="48" r="22" fill="#FFFFFF"/><text x="192" y="55" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700" fill="${a}">${initials}</text></svg>`;
@@ -943,6 +944,14 @@
             location: 'South Africa (Automated)', subscription: 'veis-member', connected: true,
             avatarUrl: veisBotAvatar('Adv. Mani'),
             bio: 'Official VEIS AI member sharing general business-law education on company structures, contracts, compliance, intellectual property, employment, consumer protection, POPIA and investor agreements. Posts are educational and are not a substitute for advice from a qualified legal professional.',
+            socials: { ...DEFAULT_SOCIALS }
+          },
+          {
+            id: 'bot-coachmani', name: 'Coach Mani', initials: 'CM', isBot: true, isVeisMember: true,
+            botBadge: 'VEIS AI Member', role: 'Business Motivation & Entrepreneurial Mindset Coach', venture: 'VEIS Founder Mindset',
+            location: 'South Africa (Automated)', subscription: 'veis-member', connected: true,
+            avatarUrl: veisBotAvatar('Coach Mani'),
+            bio: 'Official VEIS AI member helping entrepreneurs build discipline, resilience, confidence and consistent execution through practical business motivation and mindset development.',
             socials: { ...DEFAULT_SOCIALS }
           }
         ],
