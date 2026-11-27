@@ -30,6 +30,12 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .custom-scroll::-webkit-scrollbar { width: 6px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+    #broadcastGestureSurface[data-broadcast-mode="live"] #veisLiveKitMediaGrid { position:absolute; inset:0; z-index:1; display:block; max-height:none; width:100%; height:100%; padding:0; overflow:hidden; pointer-events:none; background:#080E1F; }
+    #broadcastGestureSurface[data-broadcast-mode="live"] #veisLiveKitMediaGrid:empty { display:none; }
+    #broadcastGestureSurface[data-broadcast-mode="live"] #veisLiveKitMediaGrid .veis-live-video-tile { position:absolute; inset:0; width:100%; height:100%; overflow:hidden; background:#080E1F; }
+    #broadcastGestureSurface[data-broadcast-mode="live"] #veisLiveKitMediaGrid .veis-live-video-tile:not(:first-child) { inset:auto 14px 112px auto; width:clamp(104px,28vw,180px); height:clamp(140px,24vh,220px); border:2px solid rgba(255,255,255,.8); border-radius:16px; box-shadow:0 8px 30px #0008; }
+    #broadcastGestureSurface[data-broadcast-mode="live"] #veisLiveKitMediaGrid .veis-live-video { width:100%; height:100%; object-fit:cover; background:#080E1F; }
+    #broadcastGestureSurface[data-broadcast-mode="live"] #veisLiveKitMediaGrid .veis-live-video-label { position:absolute; left:10px; bottom:10px; padding:4px 8px; border-radius:8px; color:white; background:#0009; font-size:10px; font-weight:800; }
 
     /* Responsive Desktop Multi-Column Architecture */
     .veis-shell {
@@ -476,12 +482,120 @@
       // authorizes the room/role, and returns a short-lived LiveKit access token.
       // Never place LIVEKIT_API_SECRET in browser HTML or JavaScript.
       window.VEIS_LIVEKIT_CONFIG = window.VEIS_LIVEKIT_CONFIG || {
-        serverUrl: '',       // e.g. wss://your-project.livekit.cloud
-        tokenEndpoint: ''    // e.g. https://api.veis.co.za/livekit/token
+        // Set VEIS_LIVEKIT_SERVER_URL in deployment configuration. The token endpoint
+        // is the Supabase Edge Function; its API secret stays server-side.
+        serverUrl: window.VEIS_LIVEKIT_SERVER_URL || '',
+        tokenEndpoint: `${SUPABASE_URL}/functions/v1/livekit-token`
       };
       let veisLiveKitRoom = null;
       let veisLiveKitRoomKey = '';
       let veisScreenShareActive = false;
+      let veisLiveSessionsChannel = null;
+      let veisLiveSessionSyncStarted = false;
+      let veisLiveHeartbeatTimer = null;
+      const VEIS_LIVE_HEARTBEAT_INTERVAL_MS = 15000;
+      const VEIS_LIVE_HEARTBEAT_MAX_AGE_MS = 45000;
+
+      function isFreshVEISLiveSession(stream) {
+        if (!stream || stream.isDemo || stream.status !== 'LIVE' || !stream.heartbeatAt) return false;
+        const heartbeatTime = new Date(stream.heartbeatAt).getTime();
+        return Number.isFinite(heartbeatTime) && (Date.now() - heartbeatTime) <= VEIS_LIVE_HEARTBEAT_MAX_AGE_MS && heartbeatTime <= Date.now() + 10000;
+      }
+
+      function startVEISLiveHeartbeat(streamId) {
+        stopVEISLiveHeartbeat();
+        const sendHeartbeat = async () => {
+          if (!supabaseClient || !state.currentUser || !streamId) return;
+          const { error } = await supabaseClient.from('live_sessions')
+            .update({ heartbeat_at: new Date().toISOString() })
+            .eq('id', streamId).eq('host_id', state.currentUser.id).eq('status', 'LIVE');
+          if (error) console.error('VEIS Live heartbeat failed:', error);
+        };
+        sendHeartbeat();
+        veisLiveHeartbeatTimer = setInterval(sendHeartbeat, VEIS_LIVE_HEARTBEAT_INTERVAL_MS);
+      }
+
+      function stopVEISLiveHeartbeat() {
+        if (veisLiveHeartbeatTimer) clearInterval(veisLiveHeartbeatTimer);
+        veisLiveHeartbeatTimer = null;
+      }
+
+      function mapLiveSessionRow(row) {
+        return {
+          id: row.id, mode: row.mode || 'Live', isDemo: false, heading: row.heading || 'VEIS Live Session',
+          hostId: row.host_id, hostName: row.host_name || 'VEIS Member', hostInitials: row.host_initials || 'V',
+          hostSubscription: row.host_subscription || 'free', status: row.status || 'LIVE',
+          viewers: 0, likesCount: Number(row.likes_count || 0),
+          maxGuests: Number(row.max_guests || 1), livekitRoom: row.livekit_room,
+          invitedUsers: row.invited_users || [], guests: row.guests || [],
+          pendingStageRequests: row.pending_stage_requests || [], giftsLog: row.gifts_log || [],
+          chat: row.chat || [], createdAt: row.created_at
+        };
+      }
+
+      async function refreshVEISLiveSessions() {
+        if (!supabaseClient) return;
+        const { data, error } = await supabaseClient.from('live_sessions').select('*').eq('status', 'LIVE').not('heartbeat_at', 'is', null).order('heartbeat_at', { ascending: false });
+        if (error) { console.error('VEIS live session sync failed:', error); state.liveStreams = []; saveState(); if (state.currentRoute === 'live') renderApp(); return; }
+        const remote = (data || []).map(mapLiveSessionRow).filter(isFreshVEISLiveSession);
+        // The database is the source of truth for cross-device broadcasts.
+        // Do not retain browser-only Live records: they cannot be joined by other members.
+        state.liveStreams = remote;
+        saveState();
+        if (state.currentRoute === 'live') renderApp();
+        if (state.activeBroadcast?.type === 'live') renderFullScreenBroadcastOverlay();
+      }
+
+      function startVEISLiveSessionSync() {
+        if (!supabaseClient || veisLiveSessionSyncStarted) return;
+        veisLiveSessionSyncStarted = true;
+        refreshVEISLiveSessions();
+        veisLiveSessionsChannel = supabaseClient.channel('veis-live-sessions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, payload => {
+            const row = payload.new || payload.old;
+            if (!row?.id) return;
+            if (payload.eventType === 'DELETE' || !isFreshVEISLiveSession(mapLiveSessionRow(row))) {
+              state.liveStreams = (state.liveStreams || []).filter(x => x.id !== row.id);
+              if (state.activeBroadcast?.id === row.id) {
+                if (veisLiveKitRoom) disconnectVEISLiveKit();
+                state.activeBroadcast = null;
+                renderFullScreenBroadcastOverlay();
+              }
+            } else {
+              const stream = mapLiveSessionRow(row);
+              const idx = (state.liveStreams || []).findIndex(x => x.id === stream.id);
+              if (idx >= 0) state.liveStreams[idx] = stream; else state.liveStreams.unshift(stream);
+            }
+            saveState();
+            if (state.currentRoute === 'live') renderApp();
+            if (state.activeBroadcast?.id === row.id) renderFullScreenBroadcastOverlay();
+          }).subscribe();
+      }
+
+      async function publishVEISLiveSession(stream) {
+        if (!supabaseClient) throw new Error('VEIS account service is unavailable. Please refresh and sign in again.');
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        if (!sessionData?.session?.access_token || sessionData.session.user.id !== stream.hostId) {
+          throw new Error('Please sign in with your VEIS account before starting a real broadcast.');
+        }
+        stream.livekitRoom = `veis-live-${String(stream.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+        const payload = {
+          id: stream.id, host_id: stream.hostId, host_name: stream.hostName,
+          host_initials: stream.hostInitials, host_subscription: stream.hostSubscription,
+          mode: stream.mode, heading: stream.heading, status: 'LIVE', livekit_room: stream.livekitRoom,
+          max_guests: stream.maxGuests, invited_users: stream.invitedUsers || [], guests: stream.guests || [],
+          pending_stage_requests: [], gifts_log: [], chat: stream.chat || [], heartbeat_at: new Date().toISOString()
+        };
+        const { error } = await supabaseClient.from('live_sessions').upsert(payload, { onConflict: 'id' });
+        if (error) throw new Error(`Could not publish the Live session: ${error.message}`);
+      }
+
+      async function endVEISLiveSession(streamId) {
+        stopVEISLiveHeartbeat();
+        if (!supabaseClient || !streamId) return;
+        const { error } = await supabaseClient.from('live_sessions').update({ status: 'ENDED', ended_at: new Date().toISOString() }).eq('id', streamId).eq('host_id', state.currentUser?.id);
+        if (error) console.error('Could not close VEIS Live session:', error);
+      }
 
       async function toggleVEISScreenShare() {
         if (!veisLiveKitRoom || !veisLiveKitRoom.localParticipant) {
@@ -555,17 +669,17 @@
 
       async function connectVEISLiveKit() {
         const active = state.activeBroadcast;
-        if (!active) return;
+        if (!active || veisLiveKitRoom) return;
         const cfg = window.VEIS_LIVEKIT_CONFIG || {};
-        if (!cfg.serverUrl || !cfg.tokenEndpoint) {
-          showToast('LiveKit is approved but not configured yet. Add the LiveKit server URL and secure token endpoint to deployment settings.');
+        if (!cfg.tokenEndpoint) {
+          showToast('Live video token service is not configured.');
           return;
         }
-        if (!window.LivekitClient || !window.LivekitClient.Room) {
-          showToast('LiveKit video service could not load. Check the internet connection and refresh.');
+        if (!window.LivekitClient?.Room) {
+          showToast('The live video service did not load. Check your connection and refresh VEIS.');
           return;
         }
-        if (!state.currentUser) {
+        if (!state.currentUser || !supabaseClient) {
           showAuthModal('login');
           return;
         }
@@ -574,55 +688,85 @@
           : (state.liveStreams || []).find(x => x.id === active.id);
         if (!source) return;
         const roomName = String(source.livekitRoom || `veis-${active.type}-${active.id}`).replace(/[^a-zA-Z0-9_-]/g, '-');
-        const role = active.type === 'webinar' ? (source.hostId === state.currentUser.id ? 'presenter' : 'attendee')
-          : (source.hostId === state.currentUser.id || (source.guests || []).some(g => g.id === state.currentUser.id) ? 'speaker' : 'audience');
+        const isHost = source.hostId === state.currentUser.id;
+        const isApprovedSpeaker = active.type === 'webinar' ? isHost : isHost || (source.guests || []).some(g => g.id === state.currentUser.id);
+        const role = active.type === 'webinar' ? (isHost ? 'presenter' : 'attendee') : (isApprovedSpeaker ? 'speaker' : 'audience');
         try {
-          showToast('Connecting to the VEIS live room…');
+          const { data: sessionData } = await supabaseClient.auth.getSession();
+          const jwt = sessionData?.session?.access_token;
+          if (!jwt) throw new Error('Your VEIS login session has expired. Sign in again.');
+          showToast(isHost ? 'Starting your camera and microphone…' : 'Connecting to the live broadcast…');
           const tokenResponse = await fetch(cfg.tokenEndpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseClient?.auth ? (await supabaseClient.auth.getSession()).data?.session?.access_token || '' : ''}` },
-            body: JSON.stringify({ roomName, identity: state.currentUser.id, participantName: state.currentUser.name, role, broadcastType: active.type })
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+            body: JSON.stringify({ sessionId: source.id, roomName, broadcastType: active.type })
           });
-          if (!tokenResponse.ok) throw new Error(`Token service returned ${tokenResponse.status}`);
-          const tokenData = await tokenResponse.json();
+          const tokenData = await tokenResponse.json().catch(() => ({}));
+          if (!tokenResponse.ok) throw new Error(tokenData.error || `Live authorization failed (${tokenResponse.status}).`);
           const accessToken = tokenData.accessToken || tokenData.token;
-          if (!accessToken) throw new Error('Secure token service did not return an access token.');
-          if (veisLiveKitRoom) { try { await veisLiveKitRoom.disconnect(); } catch (_) {} }
-          const room = new window.LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+          if (!accessToken) throw new Error('The secure Live service did not return an access token.');
+          const room = new window.LivekitClient.Room({ adaptiveStream: true, dynacast: true, audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, videoCaptureDefaults: { resolution: window.LivekitClient.VideoPresets?.h720?.resolution } });
           veisLiveKitRoom = room;
           veisLiveKitRoomKey = roomName;
           const mount = document.getElementById('veisLiveKitMediaGrid');
-          const attachTrack = (track, participant) => {
+          const attachTrack = (track, participant, isLocal = false) => {
             if (!mount || !track || !['video', 'audio'].includes(track.kind)) return;
-            const el = track.attach();
+            const existing = mount.querySelector(`[data-participant="${CSS.escape(participant.identity)}"]`);
+            let tile = existing;
             if (track.kind === 'video') {
-              el.className = 'w-full h-full object-cover rounded-xl bg-slate-900';
-              el.setAttribute('playsinline', '');
-              let tile = mount.querySelector(`[data-participant="${CSS.escape(participant.identity)}"]`);
               if (!tile) {
-                tile = document.createElement('div'); tile.className = 'min-w-0 min-h-0 relative rounded-xl overflow-hidden bg-slate-900 border border-white/15';
-                tile.dataset.participant = participant.identity; mount.appendChild(tile);
+                tile = document.createElement('div');
+                tile.className = 'veis-live-video-tile';
+                tile.dataset.participant = participant.identity;
+                mount.appendChild(tile);
               }
+              const el = track.attach();
+              el.className = 'veis-live-video';
+              el.setAttribute('playsinline', '');
+              el.setAttribute('autoplay', '');
+              el.muted = isLocal;
               tile.appendChild(el);
-              const label = document.createElement('span'); label.className = 'absolute bottom-1 left-1 px-2 py-0.5 rounded bg-black/60 text-white text-[10px]'; label.textContent = participant.name || participant.identity; tile.appendChild(label);
-            } else { el.autoplay = true; el.playsInline = true; el.style.display = 'none'; document.body.appendChild(el); }
+              const label = document.createElement('span');
+              label.className = 'veis-live-video-label';
+              label.textContent = isLocal ? 'YOU • LIVE' : (participant.name || participant.identity);
+              tile.appendChild(label);
+            } else {
+              const el = track.attach();
+              el.autoplay = true; el.playsInline = true; el.style.display = 'none';
+              el.dataset.veisAudioParticipant = participant.identity;
+              document.body.appendChild(el);
+            }
           };
-          room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => attachTrack(track, participant));
-          room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => { try { track.detach().forEach(el => el.remove()); } catch (_) {} });
+          room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => attachTrack(track, participant, false));
+          room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, track => { try { track.detach().forEach(el => el.remove()); } catch (_) {} });
           room.on(window.LivekitClient.RoomEvent.Disconnected, () => { veisLiveKitRoom = null; veisLiveKitRoomKey = ''; });
-          await room.connect(cfg.serverUrl, accessToken);
+          room.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
+            mount?.querySelector(`[data-participant="${CSS.escape(participant.identity)}"]`)?.remove();
+            document.querySelectorAll(`[data-veis-audio-participant="${CSS.escape(participant.identity)}"]`).forEach(el => el.remove());
+          });
+          await room.connect(tokenData.serverUrl || cfg.serverUrl, accessToken);
           if (mount) mount.innerHTML = '';
           for (const participant of room.remoteParticipants.values()) {
-            for (const publication of participant.trackPublications.values()) if (publication.track) attachTrack(publication.track, participant);
+            for (const publication of participant.trackPublications.values()) if (publication.track) attachTrack(publication.track, participant, false);
           }
-          if (role === 'speaker' || role === 'presenter') {
-            await room.localParticipant.setCameraEnabled(true).catch(() => {});
-            await room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+          if (isApprovedSpeaker) {
+            await room.localParticipant.setCameraEnabled(true);
+            await room.localParticipant.setMicrophoneEnabled(true);
+            for (const publication of room.localParticipant.videoTrackPublications.values()) if (publication.track) attachTrack(publication.track, room.localParticipant, true);
           }
-          showToast(`Connected to VEIS ${active.type === 'webinar' ? 'Webinar' : 'Live'} room.`);
+          showToast(isHost ? 'You are broadcasting live. Viewers can now see and hear you.' : 'Connected. You are watching the live broadcast.');
         } catch (err) {
           console.error('VEIS LiveKit connection error:', err);
-          showToast(`LiveKit connection failed: ${err.message || 'Check server configuration.'}`);
+          if (veisLiveKitRoom) { try { await veisLiveKitRoom.disconnect(); } catch (_) {} }
+          veisLiveKitRoom = null; veisLiveKitRoomKey = '';
+          if (isHost && active.type === 'live') {
+            await endVEISLiveSession(source.id);
+            state.liveStreams = (state.liveStreams || []).filter(x => x.id !== source.id);
+            state.activeBroadcast = null;
+            saveState();
+            renderFullScreenBroadcastOverlay();
+          }
+          showToast(`Live connection failed: ${err.message || 'Please check the Live service configuration.'}`);
         }
       }
 
@@ -633,10 +777,11 @@
         updateScreenShareButtons();
         const mount = document.getElementById('veisLiveKitMediaGrid');
         if (mount) mount.innerHTML = '';
+        document.querySelectorAll('[data-veis-audio-participant]').forEach(el => el.remove());
         showToast('Disconnected from the live media room.');
       }
 
-      const ADMIN_EMAIL = 'andilemani@veis.online';
+      const ADMIN_EMAIL = 'andile@veis.co.za';
 
       const DEFAULT_SOCIALS = {
         facebook: '',
@@ -650,30 +795,13 @@
         x: ''
       };
 
-      const BOT_DAILY_WISDOM_POOL = [
-        {
-          botId: 'bot-drmani', authorName: 'Dr Mani', authorInitials: 'DM', authorSubscription: 'veis-member',
-          topic: 'Finance, Investment & Capital Strategy',
-          content: 'Daily Business Wisdom • Finance & Investment\n\nA business can report strong sales and still run out of cash. Build a 13-week cash-flow forecast, review receivables every week, and separate operating cash from money reserved for tax and debt.\n\nInvestment discipline starts with understanding risk, expected return, liquidity, and the time horizon before committing capital.'
-        },
-        {
-          botId: 'bot-profmani', authorName: 'Prof Mani', authorInitials: 'PM', authorSubscription: 'veis-member',
-          topic: 'Operations, Corporate Teaching & Business Management',
-          content: 'Daily Business Wisdom • Operations & Management\n\nA successful business should not depend on the owner remembering everything. Document the critical process, assign one accountable owner, define a measurable standard, and review performance weekly.\n\nStrong operations turn good intentions into repeatable delivery: clear roles, useful dashboards, quality controls, and continuous staff development.'
-        },
-        {
-          botId: 'bot-mrmani', authorName: 'Mr Mani', authorInitials: 'MM', authorSubscription: 'veis-member',
-          topic: 'Marketing, People Skills, Sales & Economics',
-          content: 'Daily Business Wisdom • Marketing & Sales\n\nPeople buy when they understand the value and trust the person offering it. Ask thoughtful questions, listen for the real business problem, and explain the outcome your product can deliver.\n\nMeasure marketing by qualified leads, conversion rate, customer acquisition cost, and repeat purchases—not likes alone. Keep learning how demand, pricing, and the wider economy affect your customers.'
-        }
-      ];
-
       // VEIS bot avatars: distinct, lightweight illustrated profile portraits.
       function veisBotAvatar(name) {
         const palettes = {
           'Dr Mani': ['#173B73', '#53B6E8', 'DM'],
           'Prof Mani': ['#145A45', '#8ED6B2', 'PM'],
-          'Mr Mani': ['#713B20', '#F2B66D', 'MM']
+          'Mr Mani': ['#713B20', '#F2B66D', 'MM'],
+          'Adv. Mani': ['#563B75', '#B99AE8', 'AM']
         };
         const [a, b, initials] = palettes[name] || ['#334155', '#94A3B8', 'AI'];
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="240" height="240" rx="120" fill="url(#g)"/><circle cx="120" cy="88" r="43" fill="#F2C7A5"/><path d="M77 85c2-48 82-65 92 0-17-13-28-18-47-18-18 0-29 8-45 18" fill="#263244"/><path d="M49 224c5-56 31-82 71-82s66 26 71 82" fill="#F4F7FB"/><path d="M95 145l25 29 25-29" fill="none" stroke="${a}" stroke-width="9"/><circle cx="105" cy="91" r="4" fill="#263244"/><circle cx="136" cy="91" r="4" fill="#263244"/><path d="M108 112q12 9 24 0" fill="none" stroke="#9B5D4B" stroke-width="4" stroke-linecap="round"/><circle cx="192" cy="48" r="22" fill="#FFFFFF"/><text x="192" y="55" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700" fill="${a}">${initials}</text></svg>`;
@@ -689,6 +817,7 @@
         routeParam: null,
         feedFilter: 'Posts',
         liveFilter: 'All',
+        liveCategory: 'All',
         activeBroadcast: null,
         walletSubTab: 'statement',
         analyticsSubTab: 'posts',
@@ -807,6 +936,14 @@
             avatarUrl: veisBotAvatar('Mr Mani'),
             bio: 'Official VEIS AI member focused on marketing, sales, communication, people skills, customer relationships, and economics.',
             socials: { ...DEFAULT_SOCIALS }
+          },
+          {
+            id: 'bot-advmani', name: 'Adv. Mani', initials: 'AM', isBot: true, isVeisMember: true,
+            botBadge: 'VEIS AI Member', role: 'Business Law & Legal Compliance Advisor', venture: 'VEIS Legal Knowledge Desk',
+            location: 'South Africa (Automated)', subscription: 'veis-member', connected: true,
+            avatarUrl: veisBotAvatar('Adv. Mani'),
+            bio: 'Official VEIS AI member sharing general business-law education on company structures, contracts, compliance, intellectual property, employment, consumer protection, POPIA and investor agreements. Posts are educational and are not a substitute for advice from a qualified legal professional.',
+            socials: { ...DEFAULT_SOCIALS }
           }
         ],
         posts: [
@@ -832,60 +969,7 @@
             comments: []
           }
         ],
-        liveStreams: [
-          {
-            id: 'demo-live-1',
-            mode: 'Net Live',
-            isDemo: true,
-            heading: 'Building Partnerships & Co-Founder Alignment',
-            hostId: 'bot-drmani',
-            hostName: 'Dr Mani',
-            hostInitials: 'DM',
-            hostSubscription: 'business',
-            status: 'DEMO',
-            viewers: 148,
-            likesCount: 4720,
-            dailyRank: 'Daily Ranking • Top 5',
-            galleryProgress: '5/15',
-            maxGuests: 9,
-            guests: [
-              { id: 'bot-drmani', name: 'Dr Mani', initials: 'DM', role: 'Host', coinsEarned: 11, muted: false },
-              { id: 'bot-thabo', name: 'Thabo Mokoena', initials: 'TM', role: 'Co-Host', coinsEarned: 4, muted: true },
-              { id: 'bot-lerato', name: 'Lerato Khumalo', initials: 'LK', role: 'Speaker', coinsEarned: 0, muted: true },
-              { id: 'bot-sipho', name: 'Sipho Ndlovu', initials: 'SN', role: 'Speaker', coinsEarned: 0, muted: true }
-            ],
-            giftsLog: [],
-            chat: [
-              { author: 'Thabo Mokoena', badge: 'No. 1', text: 'Welcome everyone! Tap any empty + seat to join our stage and share your business pitch.' },
-              { author: 'Lerato Khumalo', text: 'Strategic supplier partnerships are key in Q4.' }
-            ]
-          },
-          {
-            id: 'demo-live-2',
-            mode: 'Live',
-            isDemo: true,
-            heading: 'Hustling: Scaling from R0 to First 100 Paying Clients',
-            hostId: 'bot-lerato',
-            hostName: 'Lerato Khumalo',
-            hostInitials: 'LK',
-            hostSubscription: 'standard',
-            status: 'DEMO',
-            viewers: 312,
-            likesCount: 107200,
-            dailyRank: 'League C1 No. 33',
-            galleryProgress: '8/15',
-            coverPhoto: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=1200&q=80',
-            maxGuests: 1,
-            guests: [
-              { id: 'bot-lerato', name: 'Lerato Khumalo', initials: 'LK', role: 'Host', coinsEarned: 745, muted: false }
-            ],
-            giftsLog: [],
-            chat: [
-              { author: 'Lerato Khumalo', isHost: true, text: 'Welcome to my solo live studio! Drop your questions below or send a V-Coin gift to boost the stream.' },
-              { author: 'Sipho Ndlovu', text: 'How do you price your first B2B retainer?' }
-            ]
-          }
-        ],
+        liveStreams: [],
         webinars: [
           {
             id: 'web-1',
@@ -1050,6 +1134,11 @@
           return {
             ...base,
             ...parsed,
+            // Remove legacy fictional demo broadcasts already saved in this browser.
+            // Preserve genuine active streams and all unrelated user data.
+            liveStreams: Array.isArray(parsed.liveStreams)
+              ? parsed.liveStreams.filter(stream => stream && !stream.isDemo && stream.status === 'LIVE' && stream.heartbeatAt && (Date.now() - new Date(stream.heartbeatAt).getTime()) <= 45000)
+              : base.liveStreams,
             activeBroadcast: null,
             settings: { ...base.settings, ...(parsed.settings || {}) },
             bots: base.bots,
@@ -1082,12 +1171,12 @@
 
       function isUserAdmin() {
         if (!state.currentUser) return false;
-        return state.currentUser.is_admin === true;
+        return !!(state.currentUser.is_admin || (state.currentUser.email || '').toLowerCase() === ADMIN_EMAIL);
       }
 
       function isPersonApprovedMentor(person) {
         if (!person || person.isBot) return false;
-        if (person.is_admin === true) return true;
+        if (person.is_admin || (person.email || '').toLowerCase() === ADMIN_EMAIL) return true;
         const matchingApplication = (state.mentorApplications || []).find(
           app => app.userId === person.id || (person.email && app.email && app.email.toLowerCase() === person.email.toLowerCase())
         );
@@ -1246,12 +1335,20 @@
       }
 
       function deductVCoinCost(cost) {
-        const amount = Number(cost || 0);
-        if (amount <= 0) return true;
-        // The SQL RLS rules correctly prevent browser-side wallet writes.
-        // Until the secure V-Coin Edge Function is connected, never simulate a debit locally.
-        showToast('V-Coin spending is temporarily unavailable while secure wallet processing is being connected. No coins have been deducted.');
-        return false;
+        let rem = Number(cost || 0);
+        if (rem <= 0) return true;
+        if (syncTotalVCoinBalance() < rem) return false;
+        const fromPur = Math.min(Number(state.vCoinPurchased || 0), rem);
+        state.vCoinPurchased = Number((Number(state.vCoinPurchased || 0) - fromPur).toFixed(2));
+        rem = Number((rem - fromPur).toFixed(2));
+        if (rem > 0) {
+          const withdrawable = getWithdrawableVCoinBalance();
+          const fromEarned = Math.min(withdrawable, rem);
+          state.vCoinWithdrawn = Number((Number(state.vCoinWithdrawn || 0) + fromEarned).toFixed(2));
+        }
+        state.vCoinSpent = Number((Number(state.vCoinSpent || 0) + Number(cost || 0)).toFixed(2));
+        syncTotalVCoinBalance();
+        return true;
       }
 
       function recordLedgerEntry(entry) {
@@ -1289,7 +1386,32 @@
         const prevMilestones = Math.floor(prevViews / threshold);
         const nextMilestones = Math.floor(nextViews / threshold);
 
-        // V-Coin rewards are not minted in the browser; this requires a trusted server-side view/reward workflow.
+        if (nextMilestones > prevMilestones && state.currentUser && post.authorId === state.currentUser.id) {
+          const earnedDelta = (nextMilestones - prevMilestones) * reward;
+          state.vCoinEarned = Number((Number(state.vCoinEarned || 0) + earnedDelta).toFixed(2));
+          syncTotalVCoinBalance();
+          recordLedgerEntry({
+            type: 'view-reward',
+            category: 'Content Views',
+            label: 'Post engagement reward',
+            amount: earnedDelta,
+            direction: 'in',
+            withdrawable: true,
+            status: 'Earned'
+          });
+          if (!Array.isArray(state.notifications)) state.notifications = [];
+          const rewardNotificationId = `notif-post-reward-${post.id}-${nextMilestones}`;
+          if (!state.notifications.some(n => n.id === rewardNotificationId)) {
+            state.notifications.unshift({
+              id: rewardNotificationId,
+              type: 'vcoin',
+              title: 'Your post earned V-Coins!',
+              text: `${earnedDelta.toLocaleString()} V-Coins have been added to your E-Wallet from your post engagement.`,
+              time: 'Just now',
+              unread: true
+            });
+          }
+        }
         return true;
       }
 
@@ -1503,28 +1625,40 @@
         window.__veisBoostNudgeTimer = window.setTimeout(() => nudge.remove(), 8000);
       }
 
-      function runDailyBotWisdomScheduler() {
-        const todayKey = new Date().toISOString().slice(0, 10);
-        const alreadyPosted = new Set((state.posts || []).filter(p => p.isBot && String(p.id || '').includes(todayKey)).map(p => p.authorId));
-        let changed = false;
-        BOT_DAILY_WISDOM_POOL.forEach(chosen => {
-          if (alreadyPosted.has(chosen.botId)) return;
-          const bot = (state.bots || []).find(b => b.id === chosen.botId);
-          const postId = `bot-daily-${todayKey}-${chosen.botId}`;
-          if (state.posts.some(p => p.id === postId)) return;
-          state.posts.unshift({
-            id: postId, authorId: chosen.botId, authorName: chosen.authorName,
-            authorInitials: chosen.authorInitials, authorAvatar: bot?.avatarUrl || veisBotAvatar(chosen.authorName),
-            authorSubscription: 'veis-member', isBot: true, isSponsored: true, isPromoted: true,
-            date: 'Daily VEIS Member Insight • Today', category: 'Posts', ctaLabel: '', ctaUrl: '',
-            mediaType: 'none', mediaUrl: '', content: chosen.content, likes: 0, views: 0,
-            likedByMe: false, comments: []
-          });
-          changed = true;
-        });
-        state.lastBotPostDate = todayKey;
-        if (changed || state.lastBotPostDate !== todayKey) saveState();
-        else saveState();
+      // AI bot content is generated server-side and persisted in Supabase.
+      // The browser only reads published posts; it never contains an AI API key
+      // and never invents bot posts locally.
+      async function runDailyBotWisdomScheduler() {
+        if (!supabaseClient) return;
+        try {
+          const { data, error } = await supabaseClient
+            .from('veis_bot_posts')
+            .select('id,bot_id,author_name,author_initials,author_avatar,topic,content,created_at')
+            .order('created_at', { ascending: false })
+            .limit(100);
+          if (error) throw error;
+          const botPosts = (data || []).map(p => ({
+            id: p.id,
+            authorId: p.bot_id,
+            authorName: p.author_name,
+            authorInitials: p.author_initials || getInitials(p.author_name),
+            authorAvatar: p.author_avatar || veisBotAvatar(p.author_name),
+            authorSubscription: 'veis-member',
+            isBot: true,
+            isSponsored: false,
+            isPromoted: false,
+            date: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recent',
+            category: p.topic || 'VEIS Business Insight',
+            ctaLabel: '', ctaUrl: '', mediaType: 'none', mediaUrl: '',
+            content: p.content || '', likes: 0, views: 0, likedByMe: false, comments: []
+          }));
+          const existingNonBot = (state.posts || []).filter(p => !p.isBot);
+          state.posts = [...botPosts, ...existingNonBot];
+          saveState();
+          renderApp();
+        } catch (err) {
+          console.error('VEIS AI post history could not be loaded:', err);
+        }
       }
 
       // Adds activity alerts to the same Notifications collection used by the
@@ -1564,13 +1698,6 @@
           const { data: sessionData } = await supabaseClient.auth.getSession();
           const authUser = sessionData?.session?.user || null;
 
-          if (!authUser) {
-            state.currentUser = null;
-            state.vCoinBalance = 0;
-            renderApp();
-            return;
-          }
-
           if (authUser) {
             const { data: profile } = await supabaseClient
               .from('profiles')
@@ -1584,9 +1711,9 @@
               .eq('user_id', authUser.id)
               .maybeSingle();
 
-            const fallbackName = authUser.user_metadata?.full_name || (authUser.email || 'VEIS Member').split('@')[0];
+            const fallbackName = authUser.user_metadata?.full_name || authUser.email.split('@')[0];
             const fullName = profile?.full_name || fallbackName;
-            const autoAdmin = false; // Admin authority comes from profiles.is_admin, set by the database trigger.
+            const autoAdmin = (authUser.email || '').toLowerCase() === ADMIN_EMAIL;
 
             state.currentUser = {
               id: authUser.id,
@@ -1640,7 +1767,7 @@
                   initials: getInitials(p.full_name || p.email || 'VM'),
                   email: p.email || '',
                   isBot: false,
-                  is_admin: p.is_admin === true,
+                  is_admin: !!(p.is_admin || (p.email || '').toLowerCase() === ADMIN_EMAIL),
                   isApprovedMentor: !!(p.is_approved_mentor || prev?.isApprovedMentor || approvedFromApp || (p.email || '').toLowerCase() === ADMIN_EMAIL),
                   mentorSpecialty: p.mentor_specialty || prev?.mentorSpecialty || '',
                   role: p.role || 'Founder & Entrepreneur',
@@ -1790,9 +1917,9 @@
 
       const SIDEBAR_ITEMS = [
         { route: 'home', label: 'Home', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z"/></svg>` },
+        { route: 'live', label: 'Live Channel', badge: 'LIVE', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path stroke-linecap="round" d="M19 5l2-2"/></svg>` },
         { route: 'profile', label: 'My Profile', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z"/></svg>` },
         { route: 'connect', label: 'Connect', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM3 20a6 6 0 0 1 12 0v1H3v-1z"/></svg>` },
-        { route: 'live', label: 'Live', badge: 'LIVE', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"/></svg>` },
         { route: 'wallet', label: 'Wallet', badge: 'V-COINS', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3z"/></svg>` },
         { route: 'saved', label: 'Saved', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-7-3.5L5 21V5z"/></svg>` },
         { route: 'analytics', label: 'Analytics', icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>` },
@@ -1929,11 +2056,6 @@
         }
 
         container.innerHTML = `
-          <button type="button" data-action="open-go-live-hub" class="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold border border-red-200 transition">
-            <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-            <span>Go Live</span>
-          </button>
-
           <div class="relative">
             <button type="button" data-action="toggle-notif-dropdown" aria-label="Notifications" class="relative p-2 rounded-xl text-[#334155] hover:bg-slate-100 transition">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"/></svg>
@@ -2110,22 +2232,21 @@
 
       function renderLiveStreamCard(stream) {
         const isNetLive = stream.mode === 'Net Live';
-        const isDemo = !!stream.isDemo;
         return `
-          <div class="bg-white rounded-2xl border ${isDemo ? 'border-amber-300/80' : 'border-[#E6ECF5]'} overflow-hidden shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-[#2255D6]/40 transition">
-            <div class="relative bg-gradient-to-br ${isDemo ? 'from-[#1E293B] via-[#0F172A] to-[#1E3A8A]' : 'from-[#0E1731] via-[#172554] to-[#1E3A8A]'} p-5 text-white">
+          <div class="bg-white rounded-2xl border border-[#E6ECF5] overflow-hidden shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-[#2255D6]/40 transition">
+            <div class="relative bg-gradient-to-br from-[#0E1731] via-[#172554] to-[#1E3A8A] p-5 text-white">
               <div class="flex items-center justify-between gap-2 mb-4">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${isDemo ? 'bg-amber-400 text-slate-950' : 'bg-red-600 text-white live-pulse'} text-[11px] font-extrabold tracking-wide">
-                    <span class="w-1.5 h-1.5 rounded-full ${isDemo ? 'bg-slate-950' : 'bg-white'}"></span>
-                    <span>${isDemo ? 'LIVE STUDIO PREVIEW' : 'REAL LIVE'}</span>
+                  <span class="relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-600 text-white live-pulse text-[11px] font-extrabold tracking-wide">
+                    <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                    <span>REAL LIVE</span>
                   </span>
                   <span class="px-2.5 py-1 rounded-full bg-white/15 text-white text-[11px] font-semibold">
                     ${isNetLive ? 'Live • Group session' : 'Live • Solo session'}
                   </span>
                 </div>
                 <span class="text-xs font-semibold bg-black/30 px-2.5 py-1 rounded-full">
-                  👁️ ${Number(stream.viewers || 1).toLocaleString()} watching
+                  👁️ ${Number(stream.viewers || 0).toLocaleString()} watching
                 </span>
               </div>
 
@@ -2137,7 +2258,7 @@
               </p>
 
               <div class="mt-4 flex flex-wrap items-center gap-2">
-                ${stream.guests.slice(0, 4).map(g => `
+                ${(stream.guests || []).slice(0, 4).map(g => `
                   <div class="flex items-center gap-2 bg-white/10 backdrop-blur-xs border border-white/15 px-3 py-1.5 rounded-full">
                     <div class="w-6 h-6 rounded-full bg-[#2255D6] text-white text-[10px] font-bold flex items-center justify-center">${escapeHtml(g.initials)}</div>
                     <span class="text-xs font-semibold">${escapeHtml(g.name)}</span>
@@ -2480,7 +2601,7 @@
                 <div class="flex items-center gap-1.5 shrink-0">
                   <div class="flex items-center gap-1 bg-[#0E1731]/85 backdrop-blur-md border border-blue-400/25 px-2.5 py-1.5 rounded-full text-[11px] font-extrabold">
                     <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                    <span>${Number(stream.viewers || 1).toLocaleString()}</span>
+                    <span>${Number(stream.viewers || 0).toLocaleString()}</span>
                   </div>
                   <button type="button" data-action="scroll-live-stream" data-dir="-1" title="Previous Live Room" class="w-8 h-8 rounded-full bg-[#0E1731]/85 hover:bg-[#2255D6] border border-blue-400/25 text-white flex items-center justify-center text-xs font-bold">↑</button>
                   <button type="button" data-action="scroll-live-stream" data-dir="1" title="Next Live Room" class="w-8 h-8 rounded-full bg-[#0E1731]/85 hover:bg-[#2255D6] border border-blue-400/25 text-white flex items-center justify-center text-xs font-bold">↓</button>
@@ -2505,18 +2626,16 @@
               </div>
             </div>
 
-            <div class="relative z-10 w-full max-w-3xl mx-auto px-3 sm:px-6">
-              <div id="veisLiveKitMediaGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 sm:max-h-48 overflow-y-auto"></div>
-            </div>
+            <div id="veisLiveKitMediaGrid" class="pointer-events-none"></div>
 
             ${isNetLive ? `
-              <div class="relative z-10 flex-1 flex items-center justify-center px-2 sm:px-8 py-1.5 overflow-y-auto">
+              <div class="relative z-20 flex-1 flex items-center justify-center px-2 sm:px-8 py-1.5 overflow-y-auto">
                 <div class="w-full max-w-lg grid grid-cols-3 gap-1.5 sm:gap-4">
                   ${seatsHtml}
                 </div>
               </div>
             ` : `
-              <div class="relative z-10 flex-1 flex flex-col items-center justify-center px-6 text-center pointer-events-none">
+              <div class="relative z-20 flex-1 flex flex-col items-center justify-center px-6 text-center pointer-events-none">
                 <div class="px-4 py-2 rounded-full bg-[#0E1731]/80 backdrop-blur-md border border-blue-400/25 text-xs font-bold text-blue-100">
                   🎙️ VEIS Founder Broadcast • ${escapeHtml(stream.heading)}
                 </div>
@@ -2646,18 +2765,14 @@
                   </h1>
                   <p class="text-sm text-blue-100 mt-2.5 max-w-md leading-relaxed">
                     ${isLoggedIn
-                      ? 'Connect with real entrepreneurs, publish updates, and join professional Live conversations.'
-                      : 'Sign in or create your entrepreneur account to network with real founders, post updates, and go live.'}
+                      ? 'Connect with real entrepreneurs and publish professional business updates.'
+                      : 'Sign in or create your entrepreneur account to network with real founders and publish updates.'}
                   </p>
                   <div class="mt-5 flex flex-col items-start gap-2.5">
                     ${isLoggedIn ? `
                       <button type="button" data-action="open-create-post" class="inline-flex items-center justify-center gap-2 min-w-[200px] bg-white text-[#0E1731] hover:bg-blue-50 font-bold text-sm px-5 py-2.5 rounded-xl shadow-sm transition">
                         <span class="text-base leading-none">+</span>
                         <span>Create Post</span>
-                      </button>
-                      <button type="button" data-action="open-go-live-hub" class="inline-flex items-center justify-center gap-2 min-w-[200px] bg-white/15 hover:bg-white/25 backdrop-blur-xs text-white border border-white/25 font-bold text-sm px-5 py-2.5 rounded-xl transition">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-                        <span>Go Live</span>
                       </button>
                     ` : `
                       <div class="flex flex-wrap items-center gap-2.5">
@@ -2693,103 +2808,66 @@
       }
 
       function renderLiveDestinationView() {
-        const activeChannel = state.liveFilter === 'Webinars' ? 'Webinars' : 'Live';
-        const liveStreams = (state.liveStreams || []).filter(s => s.status === 'LIVE' || s.isDemo);
-        const webinarsList = state.webinars || [];
-        const isWebinars = activeChannel === 'Webinars';
-
-        const liveCount = liveStreams.length;
-        const webinarCount = webinarsList.length;
-
-        const content = isWebinars ? `
-          <section class="space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-              <div>
-                <p class="text-[11px] font-extrabold tracking-[0.16em] uppercase text-emerald-700">Knowledge • Learning • Development</p>
-                <h2 class="text-xl font-extrabold text-[#0F172A] mt-1">Webinars</h2>
-                <p class="text-sm text-[#64748B] mt-1">Professional sessions, business masterclasses and expert-led conversations.</p>
-              </div>
-              <button type="button" data-action="open-go-live" data-mode="Webinar Live"
-                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm">
-                <span>＋</span> Host a Webinar
-              </button>
-            </div>
-            ${webinarCount
-              ? `<div class="veis-desktop-grid-2 grid grid-cols-1 lg:grid-cols-2 gap-4">${webinarsList.map(w => renderWebinarCard(w)).join('')}</div>`
-              : `<div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-white p-8 text-center">
-                  <div class="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-2xl">🎓</div>
-                  <h3 class="mt-3 text-base font-extrabold text-[#0F172A]">Your next business insight starts here</h3>
-                  <p class="mt-1 text-sm text-[#64748B]">There are no webinars listed yet. Host a session to share knowledge with the VEIS business community.</p>
-                  <button type="button" data-action="open-go-live" data-mode="Webinar Live" class="mt-4 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold">Create Webinar</button>
-                </div>`}
-          </section>
-        ` : `
-          <section class="space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-              <div>
-                <p class="text-[11px] font-extrabold tracking-[0.16em] uppercase text-red-600">Connect • Share • Build Together</p>
-                <h2 class="text-xl font-extrabold text-[#0F172A] mt-1">Live sessions</h2>
-                <p class="text-sm text-[#64748B] mt-1">Join entrepreneurs sharing ideas, business insights and opportunities in real time.</p>
-              </div>
-
-            </div>
-            ${liveCount
-              ? `<div class="veis-desktop-grid-2 grid grid-cols-1 lg:grid-cols-2 gap-4">${liveStreams.map(s => renderLiveStreamCard(s)).join('')}</div>`
-              : `<div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-white p-8 text-center">
-                  <div class="mx-auto w-14 h-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-2xl">◉</div>
-                  <h3 class="mt-3 text-base font-extrabold text-[#0F172A]">Make the first connection</h3>
-                  <p class="mt-1 text-sm text-[#64748B]">No Live sessions are active right now. Start a solo broadcast or invite people to join your live conversation.</p>
-
-                </div>`}
-          </section>
-        `;
+        const liveStreams = (state.liveStreams || []).filter(isFreshVEISLiveSession);
+        const category = state.liveCategory || 'All';
+        const categories = [
+          { name: 'All', icon: '◉', desc: 'Every active business conversation' },
+          { name: 'Entrepreneurship', icon: '🚀', desc: 'Starting and growing businesses' },
+          { name: 'Investment', icon: '📈', desc: 'Capital, funding and investor insights' },
+          { name: 'Technology', icon: '💡', desc: 'Innovation and digital business' },
+          { name: 'Marketing', icon: '📣', desc: 'Brand, sales and customer growth' },
+          { name: 'Finance', icon: '💼', desc: 'Financial management and strategy' },
+          { name: 'Leadership', icon: '🤝', desc: 'People, teams and management' }
+        ];
+        const categoryTerms = {
+          Entrepreneurship: /entrepreneur|founder|startup|start-up|business growth/i,
+          Investment: /invest|capital|fund|valuation|equity|venture/i,
+          Technology: /tech|digital|software|ai|innovation|product/i,
+          Marketing: /market|brand|sales|customer|advertis/i,
+          Finance: /finance|financial|cash flow|account|tax|budget/i,
+          Leadership: /lead|team|people|management|culture|hr/i
+        };
+        const visibleStreams = category === 'All' ? liveStreams : liveStreams.filter(stream => {
+          const haystack = `${stream.heading || ''} ${stream.category || ''} ${stream.description || ''}`;
+          return categoryTerms[category]?.test(haystack);
+        });
+        const activeCount = liveStreams.length;
+        const totalViewers = liveStreams.reduce((sum, stream) => sum + Number(stream.viewers || 0), 0);
 
         return `
           <div class="space-y-6">
             <section class="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#0B1530] via-[#14285A] to-[#2255D6] text-white p-6 sm:p-8 shadow-lg">
               <div class="absolute -right-12 -top-16 w-64 h-64 rounded-full border border-white/10"></div>
               <div class="absolute right-8 -bottom-24 w-64 h-64 rounded-full border border-white/10"></div>
-              <div class="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-                <div class="max-w-2xl">
-                  <div class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-[11px] font-bold tracking-wide text-blue-100">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span> VEIS BUSINESS NETWORK
-                  </div>
-                  <h1 class="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">Ideas move business forward.</h1>
-                  <p class="mt-3 max-w-xl text-sm sm:text-base leading-relaxed text-blue-100">A place for entrepreneurs to exchange knowledge, present opportunities and build meaningful business connections — live.</p>
+              <div class="relative z-10 max-w-3xl">
+                <div class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-[11px] font-bold tracking-wide text-blue-100">
+                  <span class="w-2 h-2 rounded-full ${activeCount ? 'bg-red-400 live-pulse' : 'bg-slate-300'}"></span> VEIS BUSINESS NETWORK
                 </div>
-                <div class="relative z-10 flex gap-2">
-                  <div class="rounded-2xl bg-white/10 border border-white/15 px-4 py-3 min-w-[100px]">
-                    <p class="text-2xl font-extrabold">${liveCount}</p><p class="text-[11px] text-blue-100">Live sessions</p>
-                  </div>
-                  <div class="rounded-2xl bg-white/10 border border-white/15 px-4 py-3 min-w-[100px]">
-                    <p class="text-2xl font-extrabold">${webinarCount}</p><p class="text-[11px] text-blue-100">Webinars</p>
-                  </div>
+                <h1 class="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight">VEIS Live Channel</h1>
+                <p class="mt-3 max-w-2xl text-sm sm:text-base leading-relaxed text-blue-100">Join business conversations only when a real entrepreneur is broadcasting. When nobody is live, this channel stays empty.</p>
+                <div class="mt-5 flex flex-wrap gap-3">
+                  <div class="rounded-xl bg-white/10 border border-white/15 px-4 py-3"><p class="text-2xl font-extrabold">${activeCount}</p><p class="text-[11px] text-blue-100">Webinars Live Now</p></div>
+                  <div class="rounded-xl bg-white/10 border border-white/15 px-4 py-3"><p class="text-2xl font-extrabold">${totalViewers.toLocaleString()}</p><p class="text-[11px] text-blue-100">Streaming Live Now</p></div>
                 </div>
               </div>
             </section>
 
-            <nav aria-label="Live page sections" class="grid grid-cols-2 gap-3">
-              <button type="button" data-action="set-live-channel" data-channel="Webinars"
-                class="group rounded-2xl border-2 p-4 sm:p-5 text-left transition ${isWebinars ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-[#E6ECF5] bg-white hover:border-emerald-300'}">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl">🎓</span>
-                  <span class="text-xs font-bold text-[#64748B]">${webinarCount} listed</span>
-                </div>
-                <h2 class="mt-3 text-base sm:text-lg font-extrabold text-[#0F172A]">Webinars</h2>
-                <p class="mt-1 text-xs sm:text-sm text-[#64748B]">Presentations, masterclasses and professional learning.</p>
-              </button>
-              <button type="button" data-action="set-live-channel" data-channel="Live"
-                class="group rounded-2xl border-2 p-4 sm:p-5 text-left transition ${!isWebinars ? 'border-red-500 bg-red-50 shadow-sm' : 'border-[#E6ECF5] bg-white hover:border-red-300'}">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="w-11 h-11 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-xl">◉</span>
-                  <span class="text-xs font-bold text-[#64748B]">${liveCount} active</span>
-                </div>
-                <h2 class="mt-3 text-base sm:text-lg font-extrabold text-[#0F172A]">Live</h2>
-                <p class="mt-1 text-xs sm:text-sm text-[#64748B]">Go solo or invite people to join your live conversation.</p>
-              </button>
-            </nav>
+            <section class="space-y-3" aria-labelledby="veis-live-now-heading">
+              <div class="flex flex-wrap items-end justify-between gap-2">
+                <div><p class="text-[11px] font-extrabold uppercase tracking-[0.15em] text-red-600">Real-time broadcasts</p><h2 id="veis-live-now-heading" class="text-xl font-extrabold text-[#0F172A] mt-1">Live Now</h2><p class="text-sm text-[#64748B] mt-1">Watch conversations that are happening right now.</p></div>
+                <span class="text-xs font-bold text-[#64748B]">${activeCount} active ${activeCount === 1 ? 'broadcast' : 'broadcasts'}</span>
+              </div>
+              ${visibleStreams.length
+                ? `<div class="veis-desktop-grid-2 grid grid-cols-1 xl:grid-cols-2 gap-4">${visibleStreams.map(stream => renderLiveStreamCard(stream)).join('')}</div>`
+                : `<div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-white p-8 sm:p-10 text-center">
+                    <div class="mx-auto w-14 h-14 rounded-2xl bg-[#EFF6FF] text-[#2255D6] flex items-center justify-center text-2xl">◉</div>
+                    <h3 class="mt-4 text-base font-extrabold text-[#0F172A]">${activeCount ? 'No broadcasts in this category yet' : 'No one is broadcasting right now'}</h3>
+                    <p class="mt-2 max-w-lg mx-auto text-sm text-[#64748B]">${activeCount ? 'Choose another business category to explore the active conversations.' : 'When an entrepreneur starts a real broadcast, it will appear here. Check back soon to join the conversation.'}</p>
+                    ${activeCount ? `<button type="button" data-action="set-live-category" data-category="All" class="mt-4 px-4 py-2 rounded-xl bg-[#2255D6] text-white text-xs font-bold">Show all live broadcasts</button>` : ''}
+                  </div>`}
+            </section>
 
-            <div class="pt-1">${content}</div>
+
           </div>
         `;
       }
@@ -5361,6 +5439,8 @@
         };
         closeModal();
         renderFullScreenBroadcastOverlay();
+        // Join the media room immediately: hosts publish; viewers subscribe.
+        setTimeout(() => { if (state.activeBroadcast?.id === stream.id) connectVEISLiveKit(); }, 120);
       }
 
       function enterFullScreenWebinarTheatre(webinarId) {
@@ -5976,12 +6056,12 @@
           saveState();
           renderApp();
           showToast('Item deleted by Admin.');
-        } else if (action === 'open-go-live-hub') {
-          showGoLiveHubModal();
-        } else if (action === 'open-go-live') {
-          showGoLiveModal(actionTarget.getAttribute('data-mode') || 'Net Live');
-        } else if (action === 'open-live-format') {
-          showLiveFormatModal();
+        } else if (action === 'open-go-live-hub' || action === 'open-go-live' || action === 'open-live-format') {
+          showToast('VEIS Live is currently being rebuilt and is temporarily unavailable.');
+        } else if (action === 'set-live-category') {
+          state.liveCategory = actionTarget.getAttribute('data-category') || 'All';
+          saveState();
+          renderApp();
         } else if (action === 'set-live-channel') {
           state.liveFilter = actionTarget.getAttribute('data-channel') || 'All';
           saveState();
@@ -5994,9 +6074,19 @@
           const webinarId = actionTarget.getAttribute('data-id');
           enterFullScreenWebinarTheatre(webinarId);
         } else if (action === 'close-fullscreen-broadcast') {
+          const closingBroadcast = state.activeBroadcast;
+          if (closingBroadcast?.type === 'live') {
+            const closingStream = (state.liveStreams || []).find(x => x.id === closingBroadcast.id);
+            if (closingStream?.hostId === state.currentUser?.id) {
+              endVEISLiveSession(closingStream.id);
+              closingStream.status = 'ENDED';
+              state.liveStreams = state.liveStreams.filter(x => x.id !== closingStream.id);
+            }
+          }
           if (veisLiveKitRoom) disconnectVEISLiveKit();
           veisScreenShareActive = false;
           state.activeBroadcast = null;
+          saveState();
           renderFullScreenBroadcastOverlay();
         } else if (action === 'connect-livekit') {
           connectVEISLiveKit();
@@ -6241,8 +6331,6 @@
             showAuthModal('login');
             return;
           }
-          showToast('V-Coin purchases are not active yet. A secure payment and wallet-credit service must be connected first.');
-          return;
           const pkgId = actionTarget.getAttribute('data-pkg-id');
           const pkg = (state.vCoinConfig?.packages || []).find(p => p.id === pkgId);
           if (!pkg) return;
@@ -6259,8 +6347,13 @@
             withdrawable: false,
             status: 'Confirmed'
           });
-          // Wallet writes are intentionally not performed from the browser.
-          // V-Coin purchases, spending and withdrawals must use an authenticated server-side function.
+          if (supabaseClient && state.currentUser) {
+            supabaseClient.from('wallets').upsert({
+              user_id: state.currentUser.id,
+              v_coins: syncTotalVCoinBalance(),
+              balance: syncTotalVCoinBalance()
+            }).then(() => {}).catch(() => {});
+          }
           saveState();
           renderApp();
           showToast(`+${coins.toLocaleString()} V-Coins credited to your E-Wallet (R${zar.toLocaleString()} ${pkg.name} Package)!`);
@@ -6693,65 +6786,95 @@
             const role = document.getElementById('authRole')?.value.trim() || 'Founder';
             const venture = document.getElementById('authVenture')?.value.trim() || 'VEIS Member';
             const tier = isDesignatedAdmin ? 'business' : (document.getElementById('authTier')?.value || 'free');
+            const birthday = document.getElementById('authBirthday')?.value || '';
+            const businessAnniversary = document.getElementById('authBizAnniversary')?.value || '';
+            const welcomeCoins = getTierWelcomeVCoins(tier);
 
-            if (!supabaseClient) {
-              showToast('VEIS account services are unavailable. Please refresh and try again.');
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Account & Enter VEIS'; }
-              return;
+            let userId = 'user-' + Date.now();
+            if (supabaseClient) {
+              try {
+                const { data, error } = await supabaseClient.auth.signUp({
+                  email,
+                  password,
+                  options: { data: { full_name: fullName, role, venture, subscription: tier } }
+                });
+                if (error) {
+                  showToast(error.message);
+                  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Account & Enter VEIS'; }
+                  return;
+                }
+                if (data?.user?.id) userId = data.user.id;
+                await supabaseClient.from('profiles').upsert({
+                  id: userId,
+                  full_name: fullName,
+                  email,
+                  role,
+                  venture,
+                  subscription: tier,
+                  is_admin: isDesignatedAdmin
+                });
+                await supabaseClient.from('wallets').upsert({
+                  user_id: userId,
+                  v_coins: welcomeCoins,
+                  balance: welcomeCoins
+                });
+              } catch (err) {}
             }
 
-            try {
-              const { data, error } = await supabaseClient.auth.signUp({
-                email,
-                password,
-                options: { data: { full_name: fullName, role, venture, subscription: tier } }
+            state.currentUser = {
+              id: userId,
+              name: fullName,
+              initials: getInitials(fullName),
+              email,
+              role,
+              venture,
+              location: 'South Africa',
+              bio: 'Building a scalable enterprise on VEIS — The City of Business.',
+              subscription: tier,
+              is_admin: isDesignatedAdmin,
+              isApprovedMentor: isDesignatedAdmin,
+              mentorSpecialty: isDesignatedAdmin ? 'Platform Strategy & Executive Mentorship' : '',
+              verificationStatus: tier === 'business' ? 'Business Verified' : (tier === 'standard' ? 'Standard Verified' : 'Standard Member'),
+              avatarUrl: '',
+              coverUrl: '',
+              birthday,
+              businessAnniversary,
+              termsAcceptedAt: new Date().toISOString(),
+              socials: { ...DEFAULT_SOCIALS, email }
+            };
+            state.vCoinPurchased = welcomeCoins;
+            syncTotalVCoinBalance();
+            syncCelebrationNotifications();
+            if (welcomeCoins > 0) {
+              recordLedgerEntry({
+                type: 'welcome-credit',
+                category: 'Tier Allocation',
+                label: `Welcome Tier Allocation (${tier.toUpperCase()} Account)`,
+                amount: welcomeCoins,
+                direction: 'in',
+                withdrawable: false,
+                status: 'Credited'
               });
-              if (error) {
-                showToast(error.message);
-                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Account & Enter VEIS'; }
-                return;
-              }
-
-              // Supabase may require email confirmation before creating a session.
-              // In that case, do not create a fake local account or claim the wallet is credited.
-              if (!data?.session) {
-                closeModal();
-                showToast('Account request received. Please check your email to confirm your VEIS account, then sign in.');
-                return;
-              }
-
-              await syncWithSupabase();
-              if (!state.currentUser) {
-                showToast('Your account was created, but the VEIS profile is not ready yet. Please sign in again shortly.');
-                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Account & Enter VEIS'; }
-                return;
-              }
-              closeModal();
-              renderApp();
-              showToast(`Welcome to VEIS, ${state.currentUser.name}. Your profile and wallet are managed by VEIS securely.`);
-            } catch (err) {
-              console.error('VEIS signup error:', err);
-              showToast('We could not complete signup. Please try again.');
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create Account & Enter VEIS'; }
             }
+            pushWelcomeAndVCoinNotifications(fullName, tier, welcomeCoins);
+            saveState();
+            startVEISLiveSessionSync();
+            closeModal();
+            renderApp();
+            showToast(welcomeCoins > 0 ? `Welcome ${fullName}! +${welcomeCoins} V-Coins added to your E-Wallet.` : `Welcome ${fullName}! Account created.`);
           } else {
             let userId = 'user-' + Date.now();
             let resolvedName = isDesignatedAdmin ? 'Andile Mani' : email.split('@')[0];
             let resolvedRole = isDesignatedAdmin ? 'Founder & Platform Administrator' : 'Founder & Entrepreneur';
             let resolvedVenture = isDesignatedAdmin ? 'VEIS — The City of Business' : 'VEIS Member';
-            let resolvedTier = 'free';
+            let resolvedTier = isDesignatedAdmin ? 'business' : 'free';
             let resolvedAvatar = '';
             let resolvedBio = 'Building on VEIS — The City of Business.';
             let resolvedSocials = { ...DEFAULT_SOCIALS, email };
-            let resolvedIsAdmin = false;
-            let resolvedIsMentor = false;
-            let resolvedMentorSpec = '';
+            let resolvedIsAdmin = isDesignatedAdmin;
+            let resolvedIsMentor = isDesignatedAdmin;
+            let resolvedMentorSpec = isDesignatedAdmin ? 'Platform Strategy & Executive Mentorship' : '';
 
-            if (!supabaseClient) {
-              showToast('VEIS sign-in services are unavailable. Please refresh and try again.');
-              if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Sign In to VEIS'; }
-              return;
-            }
             if (supabaseClient) {
               try {
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -6767,12 +6890,12 @@
                     resolvedName = prof.full_name || resolvedName;
                     resolvedRole = prof.role || resolvedRole;
                     resolvedVenture = prof.venture || resolvedVenture;
-                    resolvedTier = prof.subscription || resolvedTier;
+                    resolvedTier = isDesignatedAdmin ? 'business' : (prof.subscription || resolvedTier);
                     resolvedAvatar = prof.avatar_url || '';
                     resolvedBio = prof.bio || resolvedBio;
                     resolvedSocials = { ...resolvedSocials, ...(prof.socials || {}) };
-                    resolvedIsAdmin = prof.is_admin === true;
-                    resolvedIsMentor = !!(prof.is_approved_mentor || prof.is_admin === true);
+                    resolvedIsAdmin = !!(prof.is_admin || isDesignatedAdmin);
+                    resolvedIsMentor = !!(prof.is_approved_mentor || prof.is_admin || isDesignatedAdmin);
                     resolvedMentorSpec = prof.mentor_specialty || resolvedMentorSpec;
                   }
                   const { data: wal } = await supabaseClient.from('wallets').select('v_coins, balance, total_earned, total_withdrawn').eq('user_id', userId).maybeSingle();
@@ -6816,7 +6939,7 @@
             saveState();
             closeModal();
             renderApp();
-            syncWithSupabase();
+            syncWithSupabase().then(() => startVEISLiveSessionSync());
             showToast(`Signed in as ${resolvedName}`);
           }
           return;
@@ -7288,7 +7411,7 @@
             hostInitials: state.currentUser.initials,
             hostSubscription: state.currentUser.subscription || 'free',
             status: 'LIVE',
-            viewers: 1,
+            viewers: 0,
             likesCount: 1,
             dailyRank: 'New Live',
             galleryProgress: '1/15',
@@ -7304,7 +7427,14 @@
             ]
           };
 
+          try {
+            await publishVEISLiveSession(newStream);
+          } catch (liveSetupError) {
+            showToast(liveSetupError.message || 'Could not create the Live session.');
+            return;
+          }
           state.liveStreams.unshift(newStream);
+          startVEISLiveHeartbeat(newStream.id);
           const liveAlertCount = queueConnectionAlert('live', `${state.currentUser.name} is LIVE now`, heading, `#live-${newStream.id}`);
           state.liveFilter = 'Live';
           saveState();
@@ -7318,8 +7448,6 @@
         if (e.target.id === 'subscriptionVerifyForm') {
           e.preventDefault();
           if (!state.currentUser) return;
-          showToast('Account verification and tier changes must be approved through the secure VEIS verification process. No tier or V-Coins have been changed.');
-          return;
           const selected = document.querySelector('input[name="subTier"]:checked')?.value || 'free';
           const idFile = document.getElementById('kycIdFile')?.files?.[0];
           const selfieFile = document.getElementById('kycSelfieFile')?.files?.[0];
@@ -7358,8 +7486,14 @@
             pushWelcomeAndVCoinNotifications(state.currentUser.name, selected, coinDelta);
           }
 
-          // Account-tier activation and its V-Coin allocation must be confirmed
-          // by a trusted server-side workflow; do not write wallet balances here.
+          if (supabaseClient) {
+            supabaseClient.from('profiles').update({ subscription: selected }).eq('id', state.currentUser.id).then(() => {}).catch(() => {});
+            supabaseClient.from('wallets').upsert({
+              user_id: state.currentUser.id,
+              v_coins: syncTotalVCoinBalance(),
+              balance: syncTotalVCoinBalance()
+            }).then(() => {}).catch(() => {});
+          }
 
           saveState();
           closeModal();
@@ -7518,8 +7652,6 @@
 
         if (e.target.id === 'withdrawVCoinForm') {
           e.preventDefault();
-          showToast('V-Coin withdrawals are not active yet. Secure wallet and payout processing must be connected first. No withdrawal has been submitted.');
-          return;
           const coins = Math.floor(Number(document.getElementById('withdrawVCoinInput')?.value || 0));
           const withdrawable = getWithdrawableVCoinBalance();
           const minWd = Number(state.vCoinConfig?.minWithdrawalCoins || 1000);
@@ -7571,8 +7703,15 @@
             withdrawable: true,
             status: 'Pending Review'
           });
-          // Wallet writes are intentionally not performed from the browser.
-          // V-Coin purchases, spending and withdrawals must use an authenticated server-side function.
+
+          if (supabaseClient && state.currentUser) {
+            supabaseClient.from('wallets').upsert({
+              user_id: state.currentUser.id,
+              v_coins: syncTotalVCoinBalance(),
+              balance: syncTotalVCoinBalance(),
+              total_withdrawn: state.vCoinWithdrawn
+            }).then(() => {}).catch(() => {});
+          }
 
           saveState();
           renderApp();
