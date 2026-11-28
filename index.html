@@ -842,6 +842,7 @@
         viewedPostIdsInSession: [],
         vCoinBalance: 0,
         vCoinPurchased: 0,
+        vCoinPromotional: 0,
         vCoinEarned: 0,
         vCoinGiftsReceived: 0,
         vCoinSpent: 0,
@@ -1262,10 +1263,9 @@
         ) || null;
       }
 
+      // Every new VEIS member receives 50 promotional V-Coins, regardless of tier.
       function getTierWelcomeVCoins(tier) {
-        if (tier === 'business') return 50;
-        if (tier === 'standard') return 20;
-        return 0;
+        return 50;
       }
 
       const MESSAGE_BUSINESS_THEMES = [
@@ -1343,22 +1343,33 @@
 
       function syncTotalVCoinBalance() {
         const purchased = Math.max(0, Number(state.vCoinPurchased || 0));
+        const promotional = Math.max(0, Number(state.vCoinPromotional || 0));
         const withdrawable = getWithdrawableVCoinBalance();
-        state.vCoinBalance = Number((purchased + withdrawable).toFixed(2));
+        state.vCoinBalance = Number((purchased + promotional + withdrawable).toFixed(2));
         return state.vCoinBalance;
       }
 
-      function deductVCoinCost(cost) {
+      // Promotional signup credits are only usable for approved advertising/boosts.
+      function deductVCoinCost(cost, options = {}) {
         let rem = Number(cost || 0);
         if (rem <= 0) return true;
-        if (syncTotalVCoinBalance() < rem) return false;
-        const fromPur = Math.min(Number(state.vCoinPurchased || 0), rem);
-        state.vCoinPurchased = Number((Number(state.vCoinPurchased || 0) - fromPur).toFixed(2));
-        rem = Number((rem - fromPur).toFixed(2));
-        if (rem > 0) {
-          const withdrawable = getWithdrawableVCoinBalance();
-          const fromEarned = Math.min(withdrawable, rem);
+        const purchased = Math.max(0, Number(state.vCoinPurchased || 0));
+        const earned = getWithdrawableVCoinBalance();
+        const promotional = options.allowPromotional ? Math.max(0, Number(state.vCoinPromotional || 0)) : 0;
+        if (purchased + earned + promotional < rem) return false;
+
+        const fromPurchased = Math.min(purchased, rem);
+        state.vCoinPurchased = Number((purchased - fromPurchased).toFixed(2));
+        rem = Number((rem - fromPurchased).toFixed(2));
+
+        const fromEarned = Math.min(earned, rem);
+        if (fromEarned > 0) {
           state.vCoinWithdrawn = Number((Number(state.vCoinWithdrawn || 0) + fromEarned).toFixed(2));
+          rem = Number((rem - fromEarned).toFixed(2));
+        }
+
+        if (rem > 0 && options.allowPromotional) {
+          state.vCoinPromotional = Number((Math.max(0, Number(state.vCoinPromotional || 0)) - rem).toFixed(2));
         }
         state.vCoinSpent = Number((Number(state.vCoinSpent || 0) + Number(cost || 0)).toFixed(2));
         syncTotalVCoinBalance();
@@ -1721,7 +1732,7 @@
 
             const { data: wallet } = await supabaseClient
               .from('wallets')
-              .select('v_coins, balance, total_earned, total_withdrawn')
+              .select('v_coins, balance, total_earned, total_withdrawn, promotional_balance')
               .eq('user_id', authUser.id)
               .maybeSingle();
 
@@ -1753,18 +1764,20 @@
             if (wallet) {
               const dbEarned = Number(wallet.total_earned || 0);
               const dbWithdrawn = Number(wallet.total_withdrawn || 0);
+              const dbPromotional = Number(wallet.promotional_balance || 0);
               const dbTotal = Number(wallet.balance ?? wallet.v_coins ?? 0);
               if (dbEarned > state.vCoinEarned) state.vCoinEarned = dbEarned;
               if (dbWithdrawn > state.vCoinWithdrawn) state.vCoinWithdrawn = dbWithdrawn;
+              state.vCoinPromotional = Math.max(Number(state.vCoinPromotional || 0), dbPromotional);
               if (dbTotal > syncTotalVCoinBalance()) {
-                state.vCoinPurchased = Math.max(0, Number((dbTotal - getWithdrawableVCoinBalance()).toFixed(2)));
+                state.vCoinPurchased = Math.max(0, Number((dbTotal - getWithdrawableVCoinBalance() - state.vCoinPromotional).toFixed(2)));
               }
               syncTotalVCoinBalance();
             }
           }
 
           const { data: dbProfiles } = await supabaseClient
-            .from('profiles')
+            .from('veis_public_profiles')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(100);
@@ -1779,9 +1792,8 @@
                   id: p.id,
                   name: p.full_name || (p.email ? p.email.split('@')[0] : 'VEIS Member'),
                   initials: getInitials(p.full_name || p.email || 'VM'),
-                  email: p.email || '',
                   isBot: false,
-                  is_admin: !!(p.is_admin || (p.email || '').toLowerCase() === ADMIN_EMAIL),
+                  is_admin: false,
                   isApprovedMentor: !!(p.is_approved_mentor || prev?.isApprovedMentor || approvedFromApp || (p.email || '').toLowerCase() === ADMIN_EMAIL),
                   mentorSpecialty: p.mentor_specialty || prev?.mentorSpecialty || '',
                   role: p.role || 'Founder & Entrepreneur',
@@ -1794,7 +1806,7 @@
                   birthday: p.birthday || prev?.birthday || '',
                   businessAnniversary: p.business_anniversary || prev?.businessAnniversary || '',
                   bio: p.bio || 'Verified member of the VEIS Entrepreneur Community.',
-                  socials: { ...DEFAULT_SOCIALS, ...(p.socials || {}), email: p.email || '' }
+                  socials: { ...DEFAULT_SOCIALS, ...(p.socials || {}) }
                 };
               });
           }
@@ -1897,7 +1909,7 @@
         { key: 'instagram', label: 'Instagram', color: 'hover:bg-pink-600 hover:text-white text-pink-600 bg-pink-50', svg: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 0 0 3.6-3.6V7.6C20 5.61 18.39 4 16.4 4H7.6m9.65 1.5a1.25 1.25 0 0 1 1.25 1.25A1.25 1.25 0 0 1 17.25 8 1.25 1.25 0 0 1 16 6.75a1.25 1.25 0 0 1 1.25-1.25M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>` },
         { key: 'linkedin', label: 'LinkedIn', color: 'hover:bg-sky-700 hover:text-white text-sky-700 bg-sky-50', svg: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>` },
         { key: 'whatsapp', label: 'WhatsApp', color: 'hover:bg-emerald-600 hover:text-white text-emerald-600 bg-emerald-50', svg: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24M8.53 7.33c-.16 0-.43.06-.66.31-.22.25-.86.84-.86 2.05 0 1.21.88 2.38 1 2.54.13.16 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.51.59.19 1.12.16 1.54.1.47-.07 1.45-.59 1.65-1.16.21-.57.21-1.06.15-1.16-.06-.1-.22-.16-.47-.29-.25-.12-1.45-.72-1.68-.8-.22-.08-.39-.12-.55.12-.16.25-.63.8-.78.96-.14.16-.29.19-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.71-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47z"/></svg>` },
-        { key: 'tiktok', label: 'TikTok', color: 'hover:bg-slate-900 hover:text-white text-slate-900 bg-slate-100', svg: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z"/></svg>` },
+        { key: 'tiktok', label: 'TikTok', color: 'hover:bg-slate-900 hover:text-white text-slate-950 bg-slate-100', svg: `<svg class="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" style="display:block;color:#111827;fill:#111827"><path fill="#111827" d="M12.525 0.02h3.91c.08 1.53.63 3.02 1.74 4.14 1.1 1.11 2.63 1.63 4.14 1.79v4.02a11.2 11.2 0 0 1-4.14-.95 10.7 10.7 0 0 1-1.62-.93c-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.8-1.37 3.94-1.34 1.9-3.66 3.15-5.99 3.19a7.9 7.9 0 0 1-4.07-1.08 7.95 7.95 0 0 1-3.45-5.98c-.03-1.5.39-3.01 1.19-4.28a8.1 8.1 0 0 1 6.11-3.49c.28-.02.56-.01.84.02-.02 1.48-.04 2.96-.04 4.44-.99-.32-2.12-.23-3 .37-.64.42-1.13 1.08-1.32 1.82-.16.62-.12 1.31.12 1.91.4 1.05 1.41 1.85 2.54 1.99.75.1 1.54-.03 2.2-.42.92-.54 1.55-1.55 1.58-2.62.04-5.56.02-11.12.03-16.68z"/></svg>` },
         { key: 'website', label: 'Website', color: 'hover:bg-indigo-600 hover:text-white text-indigo-600 bg-indigo-50', svg: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>` },
         { key: 'email', label: 'Email', color: 'hover:bg-amber-600 hover:text-white text-amber-600 bg-amber-50', svg: `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>` },
         { key: 'youtube', label: 'YouTube', color: 'hover:bg-red-600 hover:text-white text-red-600 bg-red-50', svg: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>` },
@@ -3591,6 +3603,7 @@
         if (route === 'wallet') {
           const totalBal = Number(syncTotalVCoinBalance());
           const purchasedBal = Math.max(0, Number(state.vCoinPurchased || 0));
+          const promotionalBal = Math.max(0, Number(state.vCoinPromotional || 0));
           const earnedBal = Math.max(0, Number(state.vCoinEarned || 0));
           const spentBal = Math.max(0, Number(state.vCoinSpent || 0));
           const withdrawnBal = Math.max(0, Number(state.vCoinWithdrawn || 0));
@@ -3606,8 +3619,8 @@
 
           // Compact Pill Buttons for Modern E-Wallet Actions
           const eWalletButtons = [
-            { id: 'buy', icon: '➕', label: 'Buy V-Coins', variant: 'primary' },
-            { id: 'withdraw', icon: '🏦', label: 'Withdraw', variant: 'emerald' },
+            { id: 'buy', icon: '⏸', label: 'Purchases Disabled', variant: 'primary' },
+            { id: 'withdraw', icon: '⏸', label: 'Withdrawals Disabled', variant: 'emerald' },
             { id: 'statement', icon: '📄', label: 'Statement', variant: 'glass' },
             { id: 'earn', icon: '👁️', label: '1,000-View Rewards', variant: 'glass' },
             { id: 'spend', icon: '🚀', label: 'Ads & Upgrades', variant: 'glass' },
@@ -3621,7 +3634,7 @@
 
           if (activeSubTab === 'statement') {
             const txs = state.walletTransactions || [];
-            const totalInflow = Number((purchasedBal + earnedBal).toFixed(2));
+            const totalInflow = Number((purchasedBal + promotionalBal + earnedBal).toFixed(2));
             const totalOutflow = Number((spentBal + withdrawnBal).toFixed(2));
             tabBodyHtml = `
               <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs space-y-4">
@@ -3670,35 +3683,16 @@
                       </div>
                       <span class="font-extrabold shrink-0 ${tx.direction === 'out' ? 'text-rose-600' : 'text-emerald-600'}">${tx.direction === 'out' ? '-' : '+'}${Number(tx.amount).toLocaleString()} VC</span>
                     </div>
-                  `).join('') : `<p class="text-xs text-[#64748B] py-3">Your statement is live. Tap <strong>Buy V-Coins</strong> or earn from 1,000+ post views to record transactions.</p>`}
+                  `).join('') : `<p class="text-xs text-[#64748B] py-3">Your statement is live. Earn V-Coins through eligible VEIS activity; purchases and withdrawals are currently disabled.</p>`}
                 </div>
               </div>
             `;
           } else if (activeSubTab === 'buy') {
-            const pkgs = state.vCoinConfig?.packages || [];
             tabBodyHtml = `
-              <div class="space-y-4">
-                <div class="bg-white rounded-2xl border border-[#E6ECF5] p-4 shadow-xs flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 class="text-base font-extrabold text-[#0F172A]">Buy V-Coins Instant Top-Up</h2>
-                    <p class="text-xs text-[#64748B]">Credit your wallet at <strong>${rate} V-Coins = R1 ZAR</strong> for live gifts, upgrades & ads.</p>
-                  </div>
-                  <span class="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#2255D6] text-xs font-bold">Rate: ${rate} VC = R1</span>
-                </div>
-                <div class="veis-desktop-grid-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  ${pkgs.map(pkg => `
-                    <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs flex flex-col justify-between">
-                      <div>
-                        <span class="text-[11px] font-bold uppercase tracking-wider text-[#2255D6]">${escapeHtml(pkg.name)} Package</span>
-                        <p class="text-2xl font-extrabold text-[#0F172A] mt-1">${Number(pkg.coins).toLocaleString()} <span class="text-sm font-bold text-amber-600">V-Coins</span></p>
-                        <p class="text-sm font-extrabold text-emerald-700 mt-1">R${Number(pkg.zar).toLocaleString()} ZAR</p>
-                      </div>
-                      <button type="button" data-action="buy-vcoin-package" data-pkg-id="${escapeHtml(pkg.id)}" class="mt-4 w-full py-2.5 rounded-xl bg-[#2255D6] hover:bg-[#1B46B8] text-white text-xs font-bold transition">
-                        Buy ${escapeHtml(pkg.name)} (R${Number(pkg.zar).toLocaleString()})
-                      </button>
-                    </div>
-                  `).join('')}
-                </div>
+              <div class="bg-white rounded-2xl border border-amber-200 p-5 shadow-xs space-y-2">
+                <h2 class="text-base font-extrabold text-[#0F172A]">V-Coin purchases temporarily unavailable</h2>
+                <p class="text-sm text-[#64748B]">Buying V-Coins is disabled until VEIS connects and verifies its payment gateway. Your existing wallet balance and transaction history remain available.</p>
+                <span class="inline-flex px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-bold">Payment gateway not connected</span>
               </div>
             `;
           } else if (activeSubTab === 'earn') {
@@ -3775,46 +3769,20 @@
               </div>
             `;
           } else if (activeSubTab === 'withdraw') {
-            const bank = state.bankDetails || {};
-            const wReqs = state.withdrawalRequests || [];
             tabBodyHtml = `
-              <div class="space-y-5">
-                <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs space-y-3">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h2 class="text-base font-extrabold text-[#0F172A]">Withdraw Creator Earnings to Bank</h2>
-                      <p class="text-xs text-[#64748B]">Rate: <strong>${rate} VC = R1</strong> • <strong>10% VEIS commission / 90% Creator payout</strong> • Min: <strong>${minWd.toLocaleString()} earned VC</strong>.</p>
-                    </div>
-                    <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-extrabold">Withdrawable: ${withdrawableBal.toLocaleString()} VC (≈ R${(withdrawableBal / rate).toFixed(2)})</span>
+              <div class="bg-white rounded-2xl border border-amber-200 p-5 shadow-xs space-y-2">
+                <h2 class="text-base font-extrabold text-[#0F172A]">V-Coin withdrawals temporarily unavailable</h2>
+                <p class="text-sm text-[#64748B]">Withdrawals are disabled until VEIS connects and verifies its payment gateway and payout process. No withdrawal request can be submitted while this feature is unavailable.</p>
+                <span class="inline-flex px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-bold">Payout gateway not connected</span>
+              </div>
+              <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs space-y-2.5">
+                <h3 class="text-sm font-extrabold text-[#0F172A]">Withdrawal Requests & History</h3>
+                ${(state.withdrawalRequests || []).length ? state.withdrawalRequests.map(wr => `
+                  <div class="p-3 rounded-xl bg-[#F8FAFC] border border-[#E6ECF5] text-xs">
+                    <p class="font-bold text-[#0F172A]">${Number(wr.coins).toLocaleString()} VC • ${escapeHtml(wr.ref || '')}</p>
+                    <p class="text-[#64748B]">${escapeHtml(wr.time || '')} • ${escapeHtml(wr.status || '')}</p>
                   </div>
-
-                  <form id="bankDetailsForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2">
-                    <input id="bankNameInput" type="text" value="${escapeHtml(bank.bankName || '')}" placeholder="Bank Name (e.g. FNB / Capitec)" class="px-3 py-2 rounded-xl border border-[#E2E8F0] text-xs" />
-                    <input id="bankHolderInput" type="text" value="${escapeHtml(bank.accountHolder || '')}" placeholder="Account Holder Name" class="px-3 py-2 rounded-xl border border-[#E2E8F0] text-xs" />
-                    <input id="bankAccountInput" type="text" value="${escapeHtml(bank.accountNumber || '')}" placeholder="Account Number" class="px-3 py-2 rounded-xl border border-[#E2E8F0] text-xs" />
-                    <button type="submit" class="px-3.5 py-2 rounded-xl bg-[#F1F5F9] hover:bg-slate-200 text-[#0F172A] text-xs font-bold">Save Bank Info</button>
-                  </form>
-
-                  <form id="withdrawVCoinForm" class="flex flex-col sm:flex-row gap-2.5 pt-2 border-t border-[#E6ECF5]">
-                    <input id="withdrawVCoinInput" type="number" min="${minWd}" step="10" required placeholder="Earned V-Coins to withdraw (min ${minWd})" class="flex-1 px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-sm font-bold" />
-                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0">
-                      Request Payout (${Math.round((1 - commRate) * 100)}% Creator Share)
-                    </button>
-                  </form>
-                </div>
-
-                <div class="bg-white rounded-2xl border border-[#E6ECF5] p-5 shadow-xs space-y-2.5">
-                  <h3 class="text-sm font-extrabold text-[#0F172A]">Withdrawal Requests & History</h3>
-                  ${wReqs.length > 0 ? wReqs.map(wr => `
-                    <div class="p-3 rounded-xl bg-[#F8FAFC] border border-[#E6ECF5] flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div>
-                        <p class="font-bold text-[#0F172A]">${Number(wr.coins).toLocaleString()} VC • Gross R${Number(wr.grossZar).toFixed(2)} → Net R${Number(wr.netZar).toFixed(2)} (Fee R${Number(wr.commissionZar).toFixed(2)})</p>
-                        <p class="text-[#64748B]">Ref: ${escapeHtml(wr.ref)} • ${escapeHtml(wr.time)}</p>
-                      </div>
-                      <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${wr.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : (wr.status === 'Rejected' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800')}">${escapeHtml(wr.status)}</span>
-                    </div>
-                  `).join('') : `<p class="text-xs text-[#64748B]">No withdrawal requests submitted yet.</p>`}
-                </div>
+                `).join('') : `<p class="text-xs text-[#64748B]">No withdrawal requests submitted.</p>`}
               </div>
             `;
           } else if (activeSubTab === 'terms') {
@@ -3910,7 +3878,8 @@
                   <div>
                     <p class="text-xs uppercase tracking-wider text-blue-200 font-semibold">Total Available V-Coins</p>
                     <p class="text-4xl sm:text-5xl font-extrabold text-amber-300 mt-1 tracking-tight">🪙 ${totalBal.toLocaleString()} <span class="text-lg font-bold text-white">VC</span></p>
-                    <p class="text-xs text-blue-200 mt-1">Cash Value: <strong class="text-white">R${(totalBal / rate).toFixed(2)} ZAR</strong> • Withdrawable: <strong class="text-emerald-300">${withdrawableBal.toLocaleString()} VC</strong></p>
+                    <p class="text-xs text-blue-200 mt-1">Reference value (excluding promo): <strong class="text-white">R${((totalBal - promotionalBal) / rate).toFixed(2)} ZAR</strong> • Eligible earned: <strong class="text-emerald-300">${withdrawableBal.toLocaleString()} VC</strong> <span class="text-amber-200">· Payouts disabled</span></p>
+                    ${promotionalBal > 0 ? `<p class="text-[11px] text-amber-200 mt-1">Promotional balance: ${promotionalBal.toLocaleString()} VC • Advertising/boosts only</p>` : ''}
                   </div>
 
                   <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
@@ -4994,12 +4963,13 @@
                   </div>
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-[#334155] mb-1">Account Tier & V-Coins Allocation</label>
+                  <label class="block text-xs font-bold text-[#334155] mb-1">Account Tier</label>
                   <select id="authTier" class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-sm font-semibold">
-                    <option value="free">Free Account (0 V-Coins)</option>
-                    <option value="standard">Standard Account (+20 V-Coins • Blue Verified Badge)</option>
-                    <option value="business">Business Account (+50 V-Coins • Green Verified Badge)</option>
+                    <option value="free">Free Account</option>
+                    <option value="standard">Standard Account (Blue Verified Badge)</option>
+                    <option value="business">Business Account (Green Verified Badge)</option>
                   </select>
+                  <p class="mt-1 text-[11px] text-[#64748B]">Every new member receives 50 promotional V-Coins, regardless of account tier. Promotional coins are for advertising and boosts only.</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -6557,36 +6527,8 @@
           saveState();
           renderApp();
         } else if (action === 'buy-vcoin-package') {
-          if (!state.currentUser) {
-            showAuthModal('login');
-            return;
-          }
-          const pkgId = actionTarget.getAttribute('data-pkg-id');
-          const pkg = (state.vCoinConfig?.packages || []).find(p => p.id === pkgId);
-          if (!pkg) return;
-          const coins = Number(pkg.coins || 0);
-          const zar = Number(pkg.zar || 0);
-          state.vCoinPurchased = Number((Number(state.vCoinPurchased || 0) + coins).toFixed(2));
-          syncTotalVCoinBalance();
-          recordLedgerEntry({
-            type: 'purchase',
-            category: 'Purchased (In-App)',
-            label: `Purchased ${pkg.name} Package (${coins.toLocaleString()} VC for R${zar.toLocaleString()})`,
-            amount: coins,
-            direction: 'in',
-            withdrawable: false,
-            status: 'Confirmed'
-          });
-          if (supabaseClient && state.currentUser) {
-            supabaseClient.from('wallets').upsert({
-              user_id: state.currentUser.id,
-              v_coins: syncTotalVCoinBalance(),
-              balance: syncTotalVCoinBalance()
-            }).then(() => {}).catch(() => {});
-          }
-          saveState();
-          renderApp();
-          showToast(`+${coins.toLocaleString()} V-Coins credited to your E-Wallet (R${zar.toLocaleString()} ${pkg.name} Package)!`);
+          showToast('V-Coin purchases are disabled until the VEIS payment gateway is connected.');
+          return;
         } else if (action === 'spend-vcoin-upgrade') {
           if (!state.currentUser) {
             showAuthModal('login');
@@ -6622,7 +6564,7 @@
           const ad = (state.vCoinConfig?.adPackages || []).find(a => a.id === adId);
           if (!ad) return;
           const cost = Number(ad.coins || 0);
-          if (!deductVCoinCost(cost)) {
+          if (!deductVCoinCost(cost, { allowPromotional: true })) {
             showToast(`Insufficient V-Coins (${cost.toLocaleString()} VC required). Buy a package in Wallet first.`);
             return;
           }
@@ -6643,6 +6585,14 @@
             withdrawable: false,
             status: 'Active'
           });
+          if (supabaseClient && state.currentUser) {
+            supabaseClient.from('wallets').upsert({
+              user_id: state.currentUser.id,
+              v_coins: syncTotalVCoinBalance(),
+              balance: syncTotalVCoinBalance(),
+              promotional_balance: Number(state.vCoinPromotional || 0)
+            }).then(() => {}).catch(() => {});
+          }
           saveState();
           renderApp();
           showToast(`Launched ${ad.name} using ${cost.toLocaleString()} V-Coins!`);
@@ -7046,7 +6996,8 @@
                 await supabaseClient.from('wallets').upsert({
                   user_id: userId,
                   v_coins: welcomeCoins,
-                  balance: welcomeCoins
+                  balance: welcomeCoins,
+                  promotional_balance: welcomeCoins
                 });
               } catch (err) {}
             }
@@ -7072,14 +7023,14 @@
               termsAcceptedAt: new Date().toISOString(),
               socials: { ...DEFAULT_SOCIALS, email }
             };
-            state.vCoinPurchased = welcomeCoins;
+            state.vCoinPromotional = Number(state.vCoinPromotional || 0) + welcomeCoins;
             syncTotalVCoinBalance();
             syncCelebrationNotifications();
             if (welcomeCoins > 0) {
               recordLedgerEntry({
                 type: 'welcome-credit',
-                category: 'Tier Allocation',
-                label: `Welcome Tier Allocation (${tier.toUpperCase()} Account)`,
+                category: 'Promotional Signup Credit',
+                label: 'New Member Promotional Bonus',
                 amount: welcomeCoins,
                 direction: 'in',
                 withdrawable: false,
@@ -7091,7 +7042,7 @@
             startVEISLiveSessionSync();
             closeModal();
             renderApp();
-            showToast(welcomeCoins > 0 ? `Welcome ${fullName}! +${welcomeCoins} V-Coins added to your E-Wallet.` : `Welcome ${fullName}! Account created.`);
+            showToast(`Welcome ${fullName}! 50 promotional V-Coins have been added to your E-Wallet.`);
           } else {
             let userId = 'user-' + Date.now();
             let resolvedName = isDesignatedAdmin ? 'Andile Mani' : email.split('@')[0];
@@ -7128,15 +7079,17 @@
                     resolvedIsMentor = !!(prof.is_approved_mentor || prof.is_admin || isDesignatedAdmin);
                     resolvedMentorSpec = prof.mentor_specialty || resolvedMentorSpec;
                   }
-                  const { data: wal } = await supabaseClient.from('wallets').select('v_coins, balance, total_earned, total_withdrawn').eq('user_id', userId).maybeSingle();
+                  const { data: wal } = await supabaseClient.from('wallets').select('v_coins, balance, total_earned, total_withdrawn, promotional_balance').eq('user_id', userId).maybeSingle();
                   if (wal) {
                     const dbEarned = Number(wal.total_earned || 0);
                     const dbWithdrawn = Number(wal.total_withdrawn || 0);
+                    const dbPromotional = Number(wal.promotional_balance || 0);
                     const dbBal = Number(wal.balance ?? wal.v_coins ?? 0);
                     state.vCoinEarned = Math.max(state.vCoinEarned, dbEarned);
                     state.vCoinWithdrawn = Math.max(state.vCoinWithdrawn, dbWithdrawn);
+                    state.vCoinPromotional = Math.max(Number(state.vCoinPromotional || 0), dbPromotional);
                     if (dbBal > syncTotalVCoinBalance()) {
-                      state.vCoinPurchased = Math.max(0, Number((dbBal - getWithdrawableVCoinBalance()).toFixed(2)));
+                      state.vCoinPurchased = Math.max(0, Number((dbBal - getWithdrawableVCoinBalance() - state.vCoinPromotional).toFixed(2)));
                     }
                     syncTotalVCoinBalance();
                   }
@@ -7888,70 +7841,7 @@
 
         if (e.target.id === 'withdrawVCoinForm') {
           e.preventDefault();
-          const coins = Math.floor(Number(document.getElementById('withdrawVCoinInput')?.value || 0));
-          const withdrawable = getWithdrawableVCoinBalance();
-          const minWd = Number(state.vCoinConfig?.minWithdrawalCoins || 1000);
-          const rate = Number(state.vCoinConfig?.exchangeRateCoinsPerZar || 100);
-          const commRate = Number(state.vCoinConfig?.commissionRate ?? 0.10);
-
-          if (coins < minWd) {
-            showToast(`Minimum withdrawal is ${minWd.toLocaleString()} earned V-Coins.`);
-            return;
-          }
-          if (coins > withdrawable) {
-            showToast(`Only earned V-Coins (${withdrawable.toLocaleString()} VC) are withdrawable. Purchased coins are for in-app use.`);
-            return;
-          }
-          const bank = state.bankDetails || {};
-          if (!bank.bankName || !bank.accountNumber) {
-            showToast('Please save your bank name and account number above before withdrawing.');
-            return;
-          }
-
-          const grossZar = Number((coins / rate).toFixed(2));
-          const commissionZar = Number((grossZar * commRate).toFixed(2));
-          const netZar = Number((grossZar - commissionZar).toFixed(2));
-          const refCode = 'WD-' + Math.floor(100000 + Math.random() * 900000);
-
-          state.vCoinWithdrawn = Number((Number(state.vCoinWithdrawn || 0) + coins).toFixed(2));
-          syncTotalVCoinBalance();
-
-          const reqEntry = {
-            id: 'wreq-' + Date.now(),
-            ref: refCode,
-            requester: state.currentUser?.name || 'Creator',
-            coins,
-            grossZar,
-            commissionZar,
-            netZar,
-            bankSummary: `${bank.bankName} ••••${String(bank.accountNumber).slice(-4)}`,
-            status: 'Pending Review',
-            time: new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-          };
-          state.withdrawalRequests.unshift(reqEntry);
-
-          recordLedgerEntry({
-            type: 'withdrawal',
-            category: 'Creator Withdrawal',
-            label: `Withdrawal ${refCode}: ${coins.toLocaleString()} VC (Gross R${grossZar.toFixed(2)} • 10% Fee R${commissionZar.toFixed(2)} • Net R${netZar.toFixed(2)})`,
-            amount: coins,
-            direction: 'out',
-            withdrawable: true,
-            status: 'Pending Review'
-          });
-
-          if (supabaseClient && state.currentUser) {
-            supabaseClient.from('wallets').upsert({
-              user_id: state.currentUser.id,
-              v_coins: syncTotalVCoinBalance(),
-              balance: syncTotalVCoinBalance(),
-              total_withdrawn: state.vCoinWithdrawn
-            }).then(() => {}).catch(() => {});
-          }
-
-          saveState();
-          renderApp();
-          showToast(`Withdrawal ${refCode} submitted! Gross R${grossZar.toFixed(2)} → Creator Net R${netZar.toFixed(2)} (90%).`);
+          showToast('V-Coin withdrawals are disabled until the VEIS payment gateway is connected.');
           return;
         }
       });
